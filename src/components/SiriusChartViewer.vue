@@ -227,7 +227,13 @@ function toggleFullscreen() {
   } else if (fakeFullscreen.value) {
     fakeFullscreen.value = false
   } else if (el.requestFullscreen) {
-    el.requestFullscreen().catch(() => (fakeFullscreen.value = true))
+    el.requestFullscreen()
+      .then(() => {
+        // Phones: the stage is 16:9, so rotate to landscape where supported (Android Chrome).
+        const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
+        if (matchMedia('(pointer: coarse)').matches) orientation?.lock?.('landscape').catch(() => {})
+      })
+      .catch(() => (fakeFullscreen.value = true))
   } else {
     // iOS Safari has no element fullscreen: fill the viewport instead.
     fakeFullscreen.value = true
