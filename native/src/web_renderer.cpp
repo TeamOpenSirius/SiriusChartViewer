@@ -73,6 +73,28 @@ TextureInfo VulkanRenderer::create_texture_rgba(const unsigned char* pixels, int
   return info;
 }
 
+bool VulkanRenderer::replace_texture_rgba(TextureId id, const unsigned char* pixels, int width,
+                                          int height, bool nearest) {
+  if (pixels == nullptr || width <= 0 || height <= 0 ||
+      std::find(live_textures_.begin(), live_textures_.end(), id) == live_textures_.end()) {
+    return false;
+  }
+  // Drop a not-yet-drained upload of the same id; JS replaces the GL texture on upload.
+  pending_pixels_.erase(std::remove_if(pending_pixels_.begin(), pending_pixels_.end(),
+                                       [id](const PendingPixels& p) { return p.id == id; }),
+                        pending_pixels_.end());
+  uploads_.erase(std::remove_if(uploads_.begin(), uploads_.end(),
+                                [id](const WebTextureUpload& u) { return u.id == id; }),
+                 uploads_.end());
+  PendingPixels pending;
+  pending.id = id;
+  pending.rgba.assign(pixels, pixels + static_cast<size_t>(width) * height * 4);
+  const unsigned char* data = pending.rgba.data();
+  pending_pixels_.push_back(std::move(pending));
+  uploads_.push_back(WebTextureUpload{id, width, height, nearest ? 1 : 0, data});
+  return true;
+}
+
 void VulkanRenderer::destroy_texture(TextureId id) {
   const auto it = std::find(live_textures_.begin(), live_textures_.end(), id);
   if (it == live_textures_.end()) {

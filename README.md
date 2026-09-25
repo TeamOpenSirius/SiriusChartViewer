@@ -24,7 +24,7 @@ Emscripten 查找顺序：`EMSDK` 环境变量 → `PATH` 上的 `emcc` → `C:/
 
 ## 使用
 
-- 拖入或「打开文件」：谱面（`.wdschart` / 官方 `.csv` / `.sus`）、音乐（ogg/mp3/wav/m4a/flac）、可选 `music_config.csv`（DelaySeconds），可一次多选。
+- 拖入或「打开文件」：谱面（`.wdschart` / 官方 `.csv` / `.sus`）、音乐（ogg/mp3/wav/m4a/flac）、曲绘图片、可选 `music_config.csv`（DelaySeconds），可一次多选。
 - 快捷键：空格 播放/暂停，←/→ ±5s（Shift ±1s），Home 回到开头，F 或双击画面 全屏。
 - 设置面板：流速 / 挡板 / Note 厚度 / 分割线特效透明度（与游戏内设置同范围）、音量、长按持续音静音、判定文字。
 
@@ -70,6 +70,7 @@ import 'sirius-chart-viewer/style.css'
 | `chart-name` | 用扩展名判断格式（`.wdschart` / `.csv` / `.sus`）；`File` 或 URL 可省略 |
 | `music` | 音乐（同上），可选 |
 | `music-config` | 官方 `music_config.csv`（DelaySeconds），可选 |
+| `cover` | 曲绘图片，绘制在舞台后方的屏幕上（`ingame_bg` 中镂空的区域），可选 |
 | `asset-base` | `assets/` 的托管 URL，默认 `/sirius-chart-viewer/` |
 | `autoplay` | 加载完自动播放（受浏览器自动播放策略限制） |
 | `fetch-init` | URL 来源的 `fetch()` 选项（如鉴权头） |
@@ -82,7 +83,7 @@ import 'sirius-chart-viewer/style.css'
 ### URL 参数（独立页面）
 
 ```
-index.html?chart=<谱面URL>&music=<音乐URL>&config=<music_config URL>&name=<显示名>&t=<起始秒>
+index.html?chart=<谱面URL>&music=<音乐URL>&cover=<曲绘URL>&config=<music_config URL>&name=<显示名>&t=<起始秒>
 ```
 
 资源需允许跨域（CORS）访问。

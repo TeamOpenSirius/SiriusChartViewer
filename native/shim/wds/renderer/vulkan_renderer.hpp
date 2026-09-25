@@ -89,6 +89,9 @@ class VulkanRenderer {
   TextureInfo create_texture_rgba(const unsigned char* pixels, int width, int height,
                                   bool nearest = false);
   void destroy_texture(TextureId id);
+  // Web-only: replace the pixels of a live texture (same id, new size allowed).
+  bool replace_texture_rgba(TextureId id, const unsigned char* pixels, int width, int height,
+                            bool nearest = false);
 
   bool draw_frame(const DrawBatch& batch, const ScreenBounds& screen, float clear_r = 0.05f,
                   float clear_g = 0.05f, float clear_b = 0.08f,

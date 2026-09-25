@@ -128,6 +128,9 @@ export class GlRenderer {
         const height = m.HEAP32[o + 2]
         const nearest = m.HEAP32[o + 3] !== 0
         const ptr = m.HEAPU32[o + 4]
+        // An upload for a live id replaces it (e.g. the stage cover re-composite).
+        const previous = this.textures.get(id)
+        if (previous) gl.deleteTexture(previous)
         const tex = gl.createTexture()!
         gl.bindTexture(gl.TEXTURE_2D, tex)
         const filter = nearest ? gl.NEAREST : gl.LINEAR

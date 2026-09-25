@@ -5,6 +5,7 @@ import SiriusChartViewer from './components/SiriusChartViewer.vue'
 import type { ChartSource } from './lib/viewer'
 
 const AUDIO_EXT = /\.(ogg|mp3|wav|m4a|aac|flac|opus|webm)$/i
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif|avif|bmp)$/i
 const assetBase = import.meta.env.BASE_URL
 
 const chart = shallowRef<ChartSource | null>(null)
@@ -13,13 +14,20 @@ const music = shallowRef<ChartSource | null>(null)
 const musicName = ref('')
 const musicConfig = shallowRef<ChartSource | null>(null)
 const configName = ref('')
+const cover = shallowRef<ChartSource | null>(null)
+const coverName = ref('')
 const dragging = ref(false)
 const player = ref<InstanceType<typeof SiriusChartViewer>>()
 
 function loadFiles(files: File[]) {
   const audio = files.find((f) => AUDIO_EXT.test(f.name))
   const config = files.find((f) => /music_config/i.test(f.name) && !AUDIO_EXT.test(f.name))
-  const chartFile = files.find((f) => f !== audio && f !== config)
+  const image = files.find((f) => IMAGE_EXT.test(f.name))
+  const chartFile = files.find((f) => f !== audio && f !== config && f !== image)
+  if (image) {
+    cover.value = image
+    coverName.value = image.name
+  }
   if (audio) {
     music.value = audio
     musicName.value = audio.name
@@ -50,7 +58,7 @@ function urlName(url: string) {
   return decodeURIComponent(url.split(/[?#]/)[0].split('/').pop() ?? '')
 }
 
-// ?chart=<url>&music=<url>&config=<music_config url>&name=<chart file name>&t=<seconds>
+// ?chart=<url>&music=<url>&config=<music_config url>&cover=<jacket url>&name=<chart file name>&t=<seconds>
 let startAt = 0
 onMounted(() => {
   const q = new URLSearchParams(window.location.search)
@@ -58,6 +66,11 @@ onMounted(() => {
   if (!chartUrl) return
   const musicUrl = q.get('music')
   const configUrl = q.get('config')
+  const coverUrl = q.get('cover')
+  if (coverUrl) {
+    cover.value = coverUrl
+    coverName.value = urlName(coverUrl)
+  }
   if (musicUrl) {
     music.value = musicUrl
     musicName.value = urlName(musicUrl)
@@ -95,13 +108,14 @@ function onLoaded() {
         <span v-if="chartName" class="chip" :title="chartName">谱面 · {{ chartName }}</span>
         <span v-if="musicName" class="chip" :title="musicName">音乐 · {{ musicName }}</span>
         <span v-if="configName" class="chip" :title="configName">配置 · {{ configName }}</span>
+        <span v-if="coverName" class="chip" :title="coverName">封面 · {{ coverName }}</span>
         <label class="btn primary">
           打开文件
           <input
             type="file"
             multiple
             hidden
-            accept=".wdschart,.csv,.sus,.txt,audio/*,.ogg,.mp3,.wav,.m4a,.flac"
+            accept=".wdschart,.csv,.sus,.txt,audio/*,.ogg,.mp3,.wav,.m4a,.flac,image/*"
             @change="onPick"
           />
         </label>
@@ -115,6 +129,7 @@ function onLoaded() {
         :chart-name="chartName"
         :music="music"
         :music-config="musicConfig"
+        :cover="cover"
         :asset-base="assetBase"
         @loaded="onLoaded"
       >
@@ -122,7 +137,7 @@ function onLoaded() {
           <div class="hint">
             <p class="big">把谱面拖到这里</p>
             <p>
-              支持 <code>.wdschart</code> / 官方 <code>.csv</code> / <code>.sus</code>，可同时拖入音乐和
+              支持 <code>.wdschart</code> / 官方 <code>.csv</code> / <code>.sus</code>，可同时拖入音乐、封面图和
               <code>music_config.csv</code>
             </p>
           </div>

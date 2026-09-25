@@ -23,6 +23,9 @@ export interface ViewerModule {
   _wv_chart_end_ms(): number
   _wv_note_count(): number
   _wv_combo(): number
+  _wv_set_cover(rgbaPtr: number, w: number, h: number): number
+  _malloc(size: number): number
+  _free(ptr: number): void
   _wv_resize(w: number, h: number): void
   _wv_set_display(speed: number, startOffset: number, heightLevel: number, splitOpacity: number): void
   _wv_set_options(muteHoldBody: number, showJudgmentText: number): void

@@ -35,6 +35,8 @@ export interface ChartInfo {
 }
 
 const WORK_DIR = '/work'
+// Jacket art is resampled into the stage screens (~450 px wide); larger input only costs time.
+const COVER_MAX_SIZE = 1024
 
 function extensionOf(name: string) {
   const m = /\.([a-z0-9]+)$/i.exec(name)
@@ -146,6 +148,35 @@ export class ChartViewer {
       : data
     await this.transport.setMusic(buffer)
     this.transport.seek(this.transport.position())
+  }
+
+  /** Show an image (song jacket) on the screens behind the stage; null restores the skin. */
+  async setCover(image: Uint8Array | Blob | null) {
+    const m = this.requireModule()
+    if (!image) {
+      m._wv_set_cover(0, 0, 0)
+      return
+    }
+    const blob = image instanceof Blob ? image : new Blob([image as BlobPart])
+    const bitmap = await createImageBitmap(blob)
+    const scale = Math.min(1, COVER_MAX_SIZE / Math.max(bitmap.width, bitmap.height))
+    const w = Math.max(1, Math.round(bitmap.width * scale))
+    const h = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    bitmap.close()
+    const pixels = ctx.getImageData(0, 0, w, h).data
+    if (this.module !== m) return
+    const ptr = m._malloc(pixels.length)
+    try {
+      m.HEAPU8.set(pixels, ptr)
+      if (!m._wv_set_cover(ptr, w, h)) throw new Error('封面绘制失败')
+    } finally {
+      m._free(ptr)
+    }
   }
 
   get hasChart() {

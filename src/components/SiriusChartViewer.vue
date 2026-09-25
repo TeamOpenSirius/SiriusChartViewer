@@ -15,6 +15,8 @@ const props = withDefaults(defineProps<{
   music?: ChartSource | null
   /** Official music_config.csv (DelaySeconds), optional. */
   musicConfig?: ChartSource | null
+  /** Song jacket image, shown on the screens behind the stage. */
+  cover?: ChartSource | null
   /** URL containing `wasm/` and `effects/` from the package's `assets/` directory. */
   assetBase?: string
   /** Start playing as soon as everything is loaded (subject to browser autoplay rules). */
@@ -26,6 +28,7 @@ const props = withDefaults(defineProps<{
   chartName: '',
   music: null,
   musicConfig: null,
+  cover: null,
   assetBase: '/sirius-chart-viewer/',
   autoplay: false,
   fetchInit: undefined,
@@ -117,14 +120,26 @@ async function loadChart() {
   emit('loaded', chartInfo.value)
 }
 
+async function loadCover() {
+  const v = viewer.value
+  if (!v) return
+  try {
+    await v.setCover(props.cover ? await readSource(props.cover, props.fetchInit) : null)
+  } catch (e) {
+    // A broken jacket must not block playback; keep the stock screens.
+    console.warn('[SiriusChartViewer] cover:', e)
+  }
+}
+
 // Source changes are coalesced: a change arriving mid-load is picked up by the
 // running loop (music before chart so the timeline knows the BGM length).
-const dirty = { music: false, chart: false }
+const dirty = { music: false, chart: false, cover: false }
 let running = false
 
-function reload(parts: { music: boolean; chart: boolean }) {
-  dirty.music ||= parts.music
-  dirty.chart ||= parts.chart
+function reload(parts: Partial<typeof dirty>) {
+  dirty.music ||= !!parts.music
+  dirty.chart ||= !!parts.chart
+  dirty.cover ||= !!parts.cover
   if (running || !viewer.value) return
   running = true
   void runReload().finally(() => (running = false))
@@ -134,10 +149,13 @@ async function runReload() {
   loading.value = true
   error.value = ''
   try {
-    while ((dirty.music || dirty.chart) && !disposed) {
+    while ((dirty.music || dirty.chart || dirty.cover) && !disposed) {
       if (dirty.music) {
         dirty.music = false
         await loadMusic()
+      } else if (dirty.cover) {
+        dirty.cover = false
+        await loadCover()
       } else {
         dirty.chart = false
         await loadChart()
@@ -151,8 +169,9 @@ async function runReload() {
   }
 }
 
-watch(() => [props.chart, props.chartName, props.musicConfig], () => reload({ music: false, chart: true }))
-watch(() => props.music, () => reload({ music: true, chart: false }))
+watch(() => [props.chart, props.chartName, props.musicConfig], () => reload({ chart: true }))
+watch(() => props.music, () => reload({ music: true }))
+watch(() => props.cover, () => reload({ cover: true }))
 
 async function play() {
   const v = viewer.value
@@ -230,7 +249,7 @@ onMounted(async () => {
     engineReady.value = true
     emit('ready')
     loading.value = false
-    reload({ music: !!props.music, chart: !!props.chart })
+    reload({ music: !!props.music, chart: !!props.chart, cover: !!props.cover })
   } catch (e) {
     loading.value = false
     if (!disposed) fail(e)
