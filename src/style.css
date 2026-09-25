@@ -1,0 +1,38 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0c12;
+  --panel: #151722;
+  --panel-2: #1d2030;
+  --border: #2a2e42;
+  --text: #e6e8f2;
+  --muted: #8a8fa8;
+  --accent: #7c8cff;
+  --accent-2: #5b6cf0;
+  --danger: #ff6b7a;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}

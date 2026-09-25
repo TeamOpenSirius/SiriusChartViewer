@@ -1,0 +1,45 @@
+{
+  "name": "sirius-chart-viewer",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Web 3D chart previewer for World Dai Star, built on the wds-editor preview core (WebAssembly + WebGL2).",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TeamOpenSirius/SiriusChartViewer"
+  },
+  "type": "module",
+  "files": [
+    "dist-lib"
+  ],
+  "module": "./dist-lib/sirius-chart-viewer.js",
+  "types": "./dist-lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-lib/types/index.d.ts",
+      "import": "./dist-lib/sirius-chart-viewer.js"
+    },
+    "./style.css": "./dist-lib/sirius-chart-viewer.css",
+    "./assets/*": "./dist-lib/assets/*"
+  },
+  "scripts": {
+    "sync:assets": "node ./scripts/sync-assets.mjs",
+    "build:wasm": "node ./scripts/build-wasm.mjs",
+    "dev": "npm run sync:assets && npm run build:wasm && vite",
+    "build": "npm run sync:assets && npm run build:wasm && vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "preview": "vite preview",
+    "build:lib": "npm run sync:assets && npm run build:wasm && node ./scripts/build-lib.mjs"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "typescript": "~5.9",
+    "vite": "^8.3.1",
+    "vue": "^3.5.43",
+    "vue-tsc": "^3.3.11"
+  }
+}

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+build/
+public/wasm/
+public/effects/
+*.log
+dist-lib/
