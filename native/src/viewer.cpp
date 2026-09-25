@@ -76,20 +76,25 @@ void layout(Viewer& v, int fb_w, int fb_h) {
 
 // ingame_bg.png has a cluster of "screens" above the stage that are cut out
 // (transparent / black) so the game can show the song jacket behind them.
-// Composite `cover` (cover-fit to the screens' bounding box) into those pixels,
-// keeping the panel borders from the skin.
+// Composite `cover` (contain-fit, centered in the screens' bounding box) into
+// those pixels, keeping the panel borders from the skin.
+//
+// `bg` comes from load_png_rgba8(), which stores rows bottom-up (Vulkan UV
+// convention); `cover` is top-down (canvas ImageData). All geometry below is in
+// top-down image coordinates and mapped through `pixel()`.
 void composite_stage_cover(std::vector<unsigned char>& bg, int bw, int bh, const unsigned char* cover,
                            int cw, int ch) {
+  auto pixel = [&](int x, int y) { return &bg[(static_cast<size_t>(bh - 1 - y) * bw + x) * 4]; };
   // Brightness as composited over black: transparent holes and black paint both read 0.
-  auto max_channel = [&](int x, int y) {
-    const unsigned char* p = &bg[(static_cast<size_t>(y) * bw + x) * 4];
+  auto brightness = [&](int x, int y) {
+    const unsigned char* p = pixel(x, y);
     return std::max({p[0], p[1], p[2]}) * p[3] / 255;
   };
   constexpr int kBlack = 10;
   int x0 = bw, y0 = bh, x1 = -1, y1 = -1;
   for (int y = bh * 5 / 100; y < bh * 65 / 100; ++y) {
     for (int x = bw * 30 / 100; x < bw * 70 / 100; ++x) {
-      if (max_channel(x, y) < kBlack) {
+      if (brightness(x, y) < kBlack) {
         x0 = std::min(x0, x);
         x1 = std::max(x1, x);
         y0 = std::min(y0, y);
@@ -102,9 +107,10 @@ void composite_stage_cover(std::vector<unsigned char>& bg, int bw, int bh, const
   }
   const float box_w = static_cast<float>(x1 - x0 + 1);
   const float box_h = static_cast<float>(y1 - y0 + 1);
-  const float scale = std::max(box_w / cw, box_h / ch);
-  const float off_x = (cw * scale - box_w) * 0.5f;
-  const float off_y = (ch * scale - box_h) * 0.5f;
+  // Contain: the whole artwork is visible, centered in the screen cluster.
+  const float scale = std::min(box_w / cw, box_h / ch);
+  const float img_x = x0 + (box_w - cw * scale) * 0.5f;
+  const float img_y = y0 + (box_h - ch * scale) * 0.5f;
   auto sample = [&](float u, float v, int c) {
     u = std::clamp(u, 0.0f, static_cast<float>(cw - 1));
     v = std::clamp(v, 0.0f, static_cast<float>(ch - 1));
@@ -124,19 +130,21 @@ void composite_stage_cover(std::vector<unsigned char>& bg, int bw, int bh, const
   constexpr float kBrightness = 0.9f;
   for (int y = y0; y <= y1; ++y) {
     for (int x = x0; x <= x1; ++x) {
-      const int m = max_channel(x, y);
+      const int m = brightness(x, y);
       // Soft edge: fully replaced below kBlack, fading out to the skin by 2×kBlack.
       const float k = std::clamp((2.0f * kBlack - m) / kBlack, 0.0f, 1.0f);
       if (k <= 0.0f) {
         continue;
       }
-      const float u = (x - x0 + off_x) / scale;
-      const float v = (y - y0 + off_y) / scale;
-      unsigned char* p = &bg[(static_cast<size_t>(y) * bw + x) * 4];
+      // Pixel centers; outside the artwork the screen stays black.
+      const float u = (x + 0.5f - img_x) / scale - 0.5f;
+      const float v = (y + 0.5f - img_y) / scale - 0.5f;
+      const bool inside = u >= -0.5f && v >= -0.5f && u <= cw - 0.5f && v <= ch - 0.5f;
+      unsigned char* p = pixel(x, y);
       const float a = p[3] / 255.0f;
       for (int c = 0; c < 3; ++c) {
         const float dst = p[c] * a;  // skin pixel over black
-        const float src = sample(u, v, c) * kBrightness;
+        const float src = inside ? sample(u, v, c) * kBrightness : 0.0f;
         p[c] = static_cast<unsigned char>(std::clamp(dst + (src - dst) * k, 0.0f, 255.0f));
       }
       p[3] = static_cast<unsigned char>(std::clamp(255.0f * std::max(a, k), 0.0f, 255.0f));

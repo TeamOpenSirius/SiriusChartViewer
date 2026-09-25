@@ -70,7 +70,7 @@ import 'sirius-chart-viewer/style.css'
 | `chart-name` | 用扩展名判断格式（`.wdschart` / `.csv` / `.sus`）；`File` 或 URL 可省略 |
 | `music` | 音乐（同上），可选 |
 | `music-config` | 官方 `music_config.csv`（DelaySeconds），可选 |
-| `cover` | 曲绘图片，绘制在舞台后方的屏幕上（`ingame_bg` 中镂空的区域），可选 |
+| `cover` | 曲绘图片，完整缩放（contain）后绘制在舞台后方的屏幕上（`ingame_bg` 中镂空的区域），可选 |
 | `asset-base` | `assets/` 的托管 URL，默认 `/sirius-chart-viewer/` |
 | `autoplay` | 加载完自动播放（受浏览器自动播放策略限制） |
 | `fetch-init` | URL 来源的 `fetch()` 选项（如鉴权头） |
