@@ -1,47 +1,219 @@
 # Sirius Chart Viewer
 
-网页版 _World Dai Star_ 谱面 3D 预览器（WebAssembly + WebGL2 + Vue 3）。
+<p align="center">
+  <img src="./public/logo.png" alt="Sirius Chart Viewer" width="112" />
+</p>
 
-预览内核直接复用 [wds-editor](https://github.com/TeamOpenSirius/wds-editor) 的 C++ 源码（git submodule），
-画面、判定特效、分割线、Combo、打击音时序与桌面编辑器的预览区一致。
+<p align="center">
+  A browser-based 3D chart previewer for <em>World Dai Star</em>, powered by the
+  <a href="https://github.com/TeamOpenSirius/wds-editor">wds-editor</a> preview core.
+</p>
 
-## 快速开始
+<p align="center">
+  <a href="./README.md"><strong>English</strong></a> ·
+  <a href="./README-CN.md">简体中文</a>
+</p>
 
-环境要求：Node.js 20+、[Emscripten](https://emscripten.org/)、CMake 3.20+（推荐 Ninja）。
+<p align="center">
+  <a href="https://github.com/TeamOpenSirius/SiriusChartViewer/actions/workflows/build.yml"><img src="https://github.com/TeamOpenSirius/SiriusChartViewer/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
+  <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="GPL-3.0-only" />
+  <img src="https://img.shields.io/badge/Vue-3.4%2B-42b883?logo=vuedotjs&logoColor=white" alt="Vue 3" />
+  <img src="https://img.shields.io/badge/WebAssembly-Emscripten-654ff0?logo=webassembly&logoColor=white" alt="WebAssembly" />
+  <img src="https://img.shields.io/badge/renderer-WebGL2-990000" alt="WebGL2" />
+</p>
+
+---
+
+## Overview
+
+**Sirius Chart Viewer** brings the chart preview experience of `wds-editor` to the browser.
+
+Instead of reimplementing the renderer in JavaScript, the project compiles the upstream C++ preview core to **WebAssembly** with Emscripten and reproduces its rendering pipeline on top of **WebGL2**. Playback timing and hit sound scheduling are handled through the **Web Audio API**, while the standalone UI and embeddable component are built with **Vue 3 + TypeScript**.
+
+The goal is to keep browser previews visually and behaviorally close to the desktop editor while remaining easy to deploy and embed into other web applications.
+
+> This project is a **viewer only**. It does not provide chart editing functionality.
+
+## Features
+
+- **Browser-native chart preview** with no desktop application required.
+- **Upstream preview-core reuse** from `wds-editor` through a Git submodule.
+- Supports **`.wdschart`**, official **`.csv`**, and **`.sus`** charts.
+- Optional music, jacket/cover image, and official `music_config.csv`.
+- Rendering behavior designed to match the desktop preview, including:
+  - stage and note rendering;
+  - split lines and effects;
+  - combo display;
+  - judgment text;
+  - hit-effect timing.
+- Web Audio based playback clock and scheduled hit sounds.
+- Playback rate control from **0.5× to 2×**.
+- Adjustable note speed, lane cover/start offset, note thickness, split-line opacity, music volume, and SFX volume.
+- Keyboard shortcuts, seeking, fullscreen support, and mobile-responsive controls.
+- Can be built as:
+  - a **standalone static web page**;
+  - an **embeddable Vue component/library**.
+- URL-based chart loading for integration with other services.
+
+## Supported Inputs
+
+| Input | Supported formats / behavior |
+| --- | --- |
+| Chart | `.wdschart`, official `.csv`, `.sus` |
+| Music | Browser-decodable audio such as OGG, MP3, WAV, M4A/AAC, FLAC, Opus, WebM |
+| Cover | PNG, JPEG, WebP, GIF, AVIF, BMP and other browser-decodable images |
+| Timing config | Official `music_config.csv`, using `DelaySeconds` |
+
+Audio and image codec support ultimately depends on the browser.
+
+## Tech Stack
+
+| Layer | Technology |
+| --- | --- |
+| UI | Vue 3, TypeScript |
+| Web build | Vite |
+| Preview core | C++17 from `wds-editor` |
+| Native-to-web toolchain | Emscripten + CMake |
+| Rendering | WebGL2 |
+| Audio / timing | Web Audio API |
+| CI | GitHub Actions |
+
+## Quick Start
+
+### Requirements
+
+- **Node.js 20+**
+- **Emscripten / emsdk**
+- **CMake 3.20+**
+- **Ninja** is recommended
+
+Clone the repository **with submodules**:
 
 ```bash
-git clone --recursive <this repo>
-# 已 clone 时：git submodule update --init
+git clone --recursive https://github.com/TeamOpenSirius/SiriusChartViewer.git
+cd SiriusChartViewer
 
-npm install
-npm run dev        # 同步音效 → 编译 wasm → 启动 Vite
-npm run build      # 独立页面，产物在 dist/，可部署到任意子路径（base: './'）
-npm run build:lib  # 可嵌入组件，产物在 dist-lib/
+npm ci
+npm run dev
 ```
 
-Emscripten 查找顺序：`EMSDK` 环境变量 → `PATH` 上的 `emcc` → `C:/SDK/emsc/emsdk`。
-`node scripts/build-wasm.mjs --debug` 生成带 `WDS_LOG` 输出的 Debug 版（`build/wasm-debug/`）。
+If the repository was cloned without submodules:
 
-## 使用
+```bash
+git submodule update --init --recursive
+```
 
-- 拖入或「打开文件」：谱面（`.wdschart` / 官方 `.csv` / `.sus`）、音乐（ogg/mp3/wav/m4a/flac）、曲绘图片、可选 `music_config.csv`（DelaySeconds），可一次多选。
-- 快捷键：空格 播放/暂停，←/→ ±5s（Shift ±1s），Home 回到开头，F 或双击画面 全屏。
-- 设置面板：流速 / 挡板 / Note 厚度 / 分割线特效透明度（与游戏内设置同范围）、音量、长按持续音静音、判定文字。
+The development command performs three steps:
 
-## 作为组件嵌入
+1. synchronizes hit-sound assets from `wds-editor`;
+2. compiles the C++ preview core to WebAssembly;
+3. starts the Vite development server.
 
-`npm run build:lib` 生成：
+### Emscripten discovery
+
+`scripts/build-wasm.mjs` searches for Emscripten in this order:
+
+1. the `EMSDK` environment variable;
+2. `emcc` available on `PATH`;
+3. `C:/SDK/emsc/emsdk` on Windows.
+
+To build a debug WASM version with verbose `WDS_LOG` output:
+
+```bash
+node scripts/build-wasm.mjs --debug
+```
+
+The debug build directory is `build/wasm-debug/`.
+
+## Available Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Sync assets, build WASM, then start Vite |
+| `npm run build` | Build the standalone site into `dist/` |
+| `npm run preview` | Preview the production Vite build |
+| `npm run typecheck` | Run Vue/TypeScript type checking |
+| `npm run sync:assets` | Copy runtime hit-sound assets from the submodule |
+| `npm run build:wasm` | Compile the native preview core into `public/wasm/` |
+| `npm run build:lib` | Build the embeddable library into `dist-lib/` |
+
+The standalone Vite build uses a relative base path, so `dist/` can be deployed under an arbitrary subdirectory.
+
+## Using the Standalone Viewer
+
+Open or drag files into the page. Multiple related files can be selected at once.
+
+Typical inputs are:
+
+```text
+expert.csv
+song.mp3
+cover.jpg
+music_config.csv
+```
+
+The page automatically separates chart, audio, cover, and timing configuration files.
+
+### Keyboard Shortcuts
+
+| Key | Action |
+| --- | --- |
+| `Space` | Play / pause |
+| `←` / `→` | Seek backward / forward 5 seconds |
+| `Shift + ←` / `Shift + →` | Seek backward / forward 1 second |
+| `Home` | Return to chart start |
+| `F` | Toggle fullscreen |
+| Double-click stage | Toggle fullscreen |
+
+On browsers without element fullscreen support, such as iOS Safari, the component falls back to filling the viewport.
+
+### URL Parameters
+
+The standalone page can load remote resources directly:
+
+```text
+index.html?chart=<chart-url>&music=<music-url>&cover=<cover-url>&config=<music_config-url>&name=<display-name>&t=<start-seconds>
+```
+
+| Parameter | Meaning |
+| --- | --- |
+| `chart` | Chart URL |
+| `music` | Optional music URL |
+| `cover` | Optional jacket/cover URL |
+| `config` | Optional `music_config.csv` URL |
+| `name` | Optional chart file name / display name |
+| `t` | Optional initial playback position in seconds |
+
+Remote resources must permit browser access through **CORS**.
+
+## Embedding as a Vue Component
+
+Build the library:
+
+```bash
+npm run build:lib
+```
+
+Output:
 
 ```text
 dist-lib/
-├── sirius-chart-viewer.js / .css   # ES 模块（vue 为 peer dependency）+ 样式
-├── types/                          # TypeScript 声明
-└── assets/                         # 运行时文件，宿主需原样静态托管
-    ├── wasm/                       #   sirius-viewer.js / .wasm / .data
-    └── effects/                    #   打击音效
+├── sirius-chart-viewer.js
+├── sirius-chart-viewer.css
+├── types/
+└── assets/
+    ├── wasm/
+    │   ├── sirius-viewer.js
+    │   ├── sirius-viewer.wasm
+    │   └── sirius-viewer.data
+    └── effects/
 ```
 
-宿主把 `assets/` 托管到某个 URL（例如 `/sirius-chart-viewer/`），然后：
+Vue is treated as a peer dependency. The runtime `assets/` directory must be hosted by the integrating application.
+
+> The package is currently marked `private` in `package.json`; the documented workflow is to build `dist-lib/` from the repository rather than install it from npm.
+
+### Example
 
 ```vue
 <script setup lang="ts">
@@ -50,83 +222,159 @@ import 'sirius-chart-viewer/style.css'
 </script>
 
 <template>
-  <!-- 组件会撑满父容器，父容器需要给定高度 -->
   <div style="height: 480px">
     <SiriusChartViewer
       :chart="chartBlob"
       chart-name="expert.csv"
-      :music="'/api/xxx/audio'"
+      :music="'/api/song/audio'"
+      :cover="'/api/song/cover'"
       asset-base="/sirius-chart-viewer/"
       autoplay
+      @loaded="info => console.log(info)"
       @error="console.error"
     />
   </div>
 </template>
 ```
 
-| Prop | 说明 |
+The component fills its parent container, so the parent should provide an explicit height.
+
+### Component Props
+
+| Prop | Type / purpose |
 | --- | --- |
-| `chart` | 谱面：`File` / `Blob` / `ArrayBuffer` / `Uint8Array` / URL 字符串 |
-| `chart-name` | 用扩展名判断格式（`.wdschart` / `.csv` / `.sus`）；`File` 或 URL 可省略 |
-| `music` | 音乐（同上），可选 |
-| `music-config` | 官方 `music_config.csv`（DelaySeconds），可选 |
-| `cover` | 曲绘图片，完整缩放（contain）后绘制在舞台后方的屏幕上（`ingame_bg` 中镂空的区域），可选 |
-| `asset-base` | `assets/` 的托管 URL，默认 `/sirius-chart-viewer/` |
-| `autoplay` | 加载完自动播放（受浏览器自动播放策略限制） |
-| `fetch-init` | URL 来源的 `fetch()` 选项（如鉴权头） |
+| `chart` | `File`, `Blob`, `ArrayBuffer`, typed-array view, or URL string |
+| `chart-name` | File name used to detect `.wdschart`, `.csv`, or `.sus`; optional when the source already has a name |
+| `music` | Optional music source using the same source types |
+| `music-config` | Optional official `music_config.csv` |
+| `cover` | Optional jacket/cover image |
+| `asset-base` | Base URL containing `wasm/` and `effects/`; defaults to `/sirius-chart-viewer/` |
+| `autoplay` | Start playback after loading, subject to browser autoplay policy |
+| `fetch-init` | Optional `fetch()` options for URL sources, such as authentication headers |
 
-事件：`ready`、`loaded(info)`、`error(message)`、`ended`。通过 ref 可调用 `play()` / `pause()` / `toggle()` / `seek(sec)`。
-组件自带播放条、设置、全屏（iOS 退化为铺满视口），按容器宽度自适应移动端。
+### Events
 
-> 宿主页面若有 CSP，`script-src` 需要包含 `'wasm-unsafe-eval'`。
-
-### URL 参数（独立页面）
-
-```
-index.html?chart=<谱面URL>&music=<音乐URL>&cover=<曲绘URL>&config=<music_config URL>&name=<显示名>&t=<起始秒>
-```
-
-资源需允许跨域（CORS）访问。
-
-## 架构
-
-```
-浏览器 (Vue)
-  AudioTransport (Web Audio 时钟) ──► wv_frame(music_us, playing, generation)
-                                        │  wasm: ChartEditorEngine.apply_timeline
-                                        │        PlaybackPreviewView.sync_hit_sfx / render
-                                        ├─► DrawBatch → 顶点数组 + 绘制命令 ──► GlRenderer (WebGL2)
-                                        └─► SFX 命令队列 ───────────────────► SfxPlayer (Web Audio 预约播放)
-```
-
-| 目录 | 说明 |
+| Event | Payload |
 | --- | --- |
-| `third_party/wds-editor` | 上游编辑器（submodule），**不做修改** |
-| `native/CMakeLists.txt` | 直接编译上游 `core/`、`chart-render/`、`renderer/src/texture.cpp`、`audio-player/src/hit_sfx.cpp`、`ui/src/regions/preview/playback_preview.cpp` |
-| `native/shim/` | 以同名头文件替换上游的 Vulkan / BASS / 编辑器 UI 依赖 |
-| `native/src/web_renderer.cpp` | `VulkanRenderer` 的 Web 实现：记录纹理上传与每帧绘制（pass 顺序、混合模式与 Vulkan 版一致） |
-| `native/src/viewer.cpp` | 导出给 JS 的 `wv_*` 接口，对应上游 `ChartPreviewPanel` 的驱动逻辑 |
-| `native/src/split_colors.cpp` | 从 `edit_gutters.cpp` 移植的分割线颜色函数（上游该文件依赖编辑器 UI） |
-| `src/lib/glRenderer.ts` | `textured_quad` 着色器移植 + 管线状态 |
-| `src/lib/audioTransport.ts` | 音乐时钟（按可听时间驱动画面，SFX 用 AudioContext 时间精确预约） |
-| `src/lib/sfx.ts` | 执行 wasm 发出的打击音命令 |
-| `src/components/SiriusChartViewer.vue` | 可嵌入的播放器组件（`src/index.ts` 为库入口） |
+| `ready` | None — preview engine initialized |
+| `loaded` | `ChartInfo` containing note count and timing information |
+| `error` | Error message string |
+| `ended` | None — playback reached the end |
 
-皮肤 PNG 在编译时通过 `--preload-file` 打进 `sirius-viewer.data`；打击音效由 `scripts/sync-assets.mjs`
-从 submodule 复制到 `public/effects/`。
+### Exposed Methods
 
-### 跟进上游
+Using a Vue template ref, the component exposes:
+
+```ts
+play()
+pause()
+toggle()
+seek(seconds)
+```
+
+It also exposes the underlying `ChartViewer` instance for advanced integrations.
+
+### Content Security Policy
+
+If the host page uses CSP, WebAssembly execution generally requires:
+
+```text
+script-src 'wasm-unsafe-eval'
+```
+
+Adjust the full policy according to the host application's own security requirements.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    UI["Vue UI / SiriusChartViewer"] --> Viewer["ChartViewer glue"]
+    Audio["AudioTransport<br/>Web Audio clock"] --> Viewer
+    Viewer --> WASM["wds-editor C++ core<br/>WebAssembly"]
+    WASM --> Preview["PlaybackPreviewView"]
+    Preview --> Batch["DrawBatch / draw commands"]
+    Batch --> GL["GlRenderer<br/>WebGL2"]
+    WASM --> SFX["SFX command queue"]
+    SFX --> Player["SfxPlayer<br/>Web Audio scheduling"]
+```
+
+At runtime, the audible music clock drives the preview timeline. The WebAssembly side applies the chart timeline and produces rendering commands plus SFX events. JavaScript then renders those commands through WebGL2 and schedules hit sounds against the Web Audio clock.
+
+This split allows the project to reuse the mature upstream chart/preview logic without carrying the desktop editor's Vulkan, BASS, or UI dependencies into the browser.
+
+## Project Structure
+
+| Path | Purpose |
+| --- | --- |
+| `third_party/wds-editor/` | Upstream editor Git submodule; kept unmodified |
+| `native/CMakeLists.txt` | Builds selected upstream C++ sources with Emscripten |
+| `native/shim/` | Browser-side replacement headers for desktop-only dependencies |
+| `native/src/viewer.cpp` | Exposes the `wv_*` bridge API used by JavaScript |
+| `native/src/web_renderer.cpp` | Web implementation of the renderer command path |
+| `native/src/split_colors.cpp` | Split-line color logic adapted from upstream editor code |
+| `src/lib/viewer.ts` | High-level glue between WASM, WebGL2, and Web Audio |
+| `src/lib/glRenderer.ts` | WebGL2 rendering backend |
+| `src/lib/audioTransport.ts` | Playback clock and music transport |
+| `src/lib/sfx.ts` | Hit-sound scheduling |
+| `src/components/SiriusChartViewer.vue` | Embeddable player component |
+| `src/App.vue` | Standalone viewer application |
+| `scripts/` | WASM build, asset sync, and library packaging scripts |
+
+The skin PNG files from `wds-editor` are embedded into `sirius-viewer.data` during the Emscripten build. Hit-sound assets are copied separately into `public/effects/`.
+
+## Following Upstream `wds-editor`
+
+The project intentionally reuses upstream source files rather than maintaining a forked copy.
+
+To update the submodule:
 
 ```bash
 git -C third_party/wds-editor pull origin main
 npm run build:wasm
 ```
 
-编译失败时通常是上游改了 `PlaybackPreviewView` 用到的接口：按报错更新 `native/shim/` 或 `native/src/split_colors.cpp`。
+If compilation breaks after an upstream update, the most likely cause is an API change around `PlaybackPreviewView` or another reused renderer interface. Update the compatibility code under `native/shim/` or the small web-specific bridge implementations as needed.
 
-## 已知差异
+## Browser Requirements
 
-- 长按持续音按帧（约 16ms）开关，未实现 BASS 版的 hold gate 精确边沿。
-- 不支持 `.wdsproject`（需要多文件）；请直接加载其中的 `.wdschart` 和音乐。
-- 仅预览，不含编辑功能。
-- 打击音效为 ogg；不支持 Ogg Vorbis 的旧版 Safari 上没有打击音（音乐不受影响）。
+A modern browser with the following features is required:
+
+- WebAssembly;
+- WebGL2;
+- Web Audio API;
+- ES modules.
+
+Recent Chromium, Firefox, and Safari releases are the intended targets. Actual audio codec support varies by browser and operating system.
+
+## Known Differences / Limitations
+
+- Hold-body SFX gating is updated per frame (roughly 16 ms) rather than reproducing the exact BASS hold-gate edge behavior from the desktop editor.
+- `.wdsproject` is not supported because it represents a multi-file project; load its chart and music files directly instead.
+- This project is a **previewer**, not an editor.
+- Hit SFX assets are OGG. Older Safari versions without Ogg Vorbis support will not play hit sounds, although music playback may still work with supported codecs.
+- Browser autoplay policies may block `autoplay` until the user interacts with the page.
+
+## CI
+
+GitHub Actions builds the project on pushes to `main`, version tags, and pull requests. The workflow builds both:
+
+- `dist/` — standalone site;
+- `dist-lib/` — embeddable component package.
+
+Both directories are uploaded as workflow artifacts.
+
+## Contributing
+
+Issues and pull requests are welcome.
+
+For changes touching the preview core integration, prefer keeping `third_party/wds-editor` unmodified and implementing browser-specific compatibility in `native/shim/` or `native/src/`. This keeps upstream updates easier to track.
+
+## License
+
+The source code in this repository is licensed under **GNU GPL v3 only (GPL-3.0-only)**. See [LICENSE](./LICENSE).
+
+`wds-editor` is included as a Git submodule and is governed by its own repository and licensing terms.
+
+## Disclaimer
+
+This is an unofficial community project. *World Dai Star* and related names, game content, artwork, audio, and other assets belong to their respective rights holders. This project is not affiliated with or endorsed by the official game operators or publishers.
