@@ -227,6 +227,11 @@ EMSCRIPTEN_KEEPALIVE int wv_load_chart(const char* chart_path, const char* music
     return 0;
   }
   v.last_error.clear();
+  // ChartPreviewPanel wires the document's visual SV timeline into stage geometry.
+  // The snapshot builder already reads the profile and SVs from the new core;
+  // ribbons/arrows also need this timeline, including clearing it on chart changes.
+  v.preview.geometry().set_scroll_speed_points(v.engine.document().scroll_speed_points(),
+                                               v.engine.document().timing());
   v.engine.seek(0);
   return 1;
 }

@@ -23,6 +23,7 @@
     "./assets/*": "./dist-lib/assets/*"
   },
   "scripts": {
+    "test:wasm": "node --test tests/wasm-preview.test.mjs",
     "sync:assets": "node ./scripts/sync-assets.mjs",
     "build:wasm": "node ./scripts/build-wasm.mjs",
     "dev": "npm run sync:assets && npm run build:wasm && vite",
