@@ -108,7 +108,7 @@ export class ChartViewer {
     this.renderer?.dispose()
     this.renderer = null
     this.module = null
-    void this.transport.ctx.close()
+    this.transport.dispose()
   }
 
   loadChart(input: ChartInput): ChartInfo {

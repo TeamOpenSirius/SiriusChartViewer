@@ -13,6 +13,10 @@ export class AudioTransport {
   private buffer: AudioBuffer | null = null
   private source: AudioBufferSourceNode | null = null
   private playing = false
+  private playRequest = 0
+  private musicRequest = 0
+  private musicLoading = false
+  private disposed = false
   private rate = 1
   /** Music time at `anchorCtx`. */
   private anchorPos = 0
@@ -56,9 +60,16 @@ export class AudioTransport {
   }
 
   async setMusic(data: ArrayBuffer | null) {
-    this.stopSource()
-    this.buffer = data ? await this.ctx.decodeAudioData(data.slice(0)) : null
-    this.restartIfPlaying()
+    this.pause()
+    const request = ++this.musicRequest
+    this.musicLoading = true
+    this.buffer = null
+    try {
+      const buffer = data ? await this.ctx.decodeAudioData(data.slice(0)) : null
+      if (!this.disposed && request === this.musicRequest) this.buffer = buffer
+    } finally {
+      if (request === this.musicRequest) this.musicLoading = false
+    }
   }
 
   /** Chart delay (ms) and last-note time (ms), both in music time. */
@@ -80,19 +91,29 @@ export class AudioTransport {
   }
 
   async play() {
-    if (this.playing) return
+    if (this.playing || this.musicLoading || this.disposed) return
+    const request = ++this.playRequest
     if (this.ctx.state !== 'running') await this.ctx.resume()
+    if (request !== this.playRequest || this.musicLoading || this.disposed) return
     if (this.anchorPos >= this.duration - 0.05) this.anchorPos = this.minTime
     this.playing = true
     this.startSource()
   }
 
   pause() {
+    this.playRequest++
     if (!this.playing) return
     this.anchorPos = this.position()
     this.playing = false
     this.stopSource()
     this.generation++
+  }
+
+  dispose() {
+    this.disposed = true
+    this.musicRequest++
+    this.pause()
+    void this.ctx.close()
   }
 
   toggle() {

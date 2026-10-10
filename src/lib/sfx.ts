@@ -49,24 +49,22 @@ export class SfxPlayer {
   async load(baseUrl: string) {
     const ctx = this.transport.ctx
     const fetchBuffer = async (name: string) => {
-      try {
-        const res = await fetch(new URL(encodeURIComponent(name), baseUrl))
-        if (!res.ok) return null
-        return await ctx.decodeAudioData(await res.arrayBuffer())
-      } catch {
-        return null
-      }
+      const res = await fetch(new URL(encodeURIComponent(name), baseUrl))
+      if (!res.ok) throw new Error(`音效加载失败 ${res.status}: ${name}`)
+      return await ctx.decodeAudioData(await res.arrayBuffer())
     }
     const [buffers, region] = await Promise.all([
       Promise.all(CLIP_FILES.map(fetchBuffer)),
       fetch(new URL('hold_loop.json', baseUrl))
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
+        .then(r => {
+          if (!r.ok) throw new Error(`长按音效配置加载失败 ${r.status}`)
+          return r.json()
+        }),
     ])
     this.buffers.splice(0, this.buffers.length, ...buffers)
-    if (region && region.end_ms > region.start_ms) {
-      this.holdRegion = { start: region.start_ms / 1000, end: region.end_ms / 1000 }
-    }
+    if (!region || !Number.isFinite(region.start_ms) || !Number.isFinite(region.end_ms)
+      || region.start_ms < 0 || region.end_ms <= region.start_ms) throw new Error('长按音效配置无效')
+    this.holdRegion = { start: region.start_ms / 1000, end: region.end_ms / 1000 }
     this.ready = true
   }
 

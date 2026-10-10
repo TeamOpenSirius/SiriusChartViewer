@@ -21,6 +21,8 @@ const props = withDefaults(defineProps<{
   assetBase?: string
   /** Start playing as soon as everything is loaded (subject to browser autoplay rules). */
   autoplay?: boolean
+  /** Host is still fetching sources; all playback stays blocked until false. */
+  pending?: boolean
   /** fetch() options for URL sources (e.g. auth headers). */
   fetchInit?: RequestInit
 }>(), {
@@ -31,6 +33,7 @@ const props = withDefaults(defineProps<{
   cover: null,
   assetBase: '/sirius-chart-viewer/',
   autoplay: false,
+  pending: false,
   fetchInit: undefined,
 })
 
@@ -62,6 +65,7 @@ let uiRaf = 0
 let disposed = false
 
 const hasChart = computed(() => !!chartInfo.value)
+const canPlay = computed(() => engineReady.value && hasChart.value && !loading.value && !props.pending && !error.value && !disposed)
 
 function formatTime(sec: number) {
   const sign = sec < 0 ? '-' : ''
@@ -97,85 +101,69 @@ function fail(e: unknown) {
   emit('error', error.value)
 }
 
-async function loadMusic() {
-  const v = viewer.value
-  if (!v) return
-  const bytes = props.music ? await readSource(props.music, props.fetchInit) : null
-  await v.loadMusic(bytes)
-}
-
-async function loadChart() {
-  const v = viewer.value
-  if (!v) return
-  if (!props.chart) {
-    chartInfo.value = undefined
-    return
-  }
-  const [data, musicConfig] = await Promise.all([
-    readSource(props.chart, props.fetchInit),
-    props.musicConfig ? readSource(props.musicConfig, props.fetchInit) : Promise.resolve(undefined),
-  ])
-  const name = props.chartName || sourceName(props.chart) || 'chart.csv'
-  chartInfo.value = v.loadChart({ name, data, musicConfig })
-  emit('loaded', chartInfo.value)
-}
-
-async function loadCover() {
-  const v = viewer.value
-  if (!v) return
-  try {
-    await v.setCover(props.cover ? await readSource(props.cover, props.fetchInit) : null)
-  } catch (e) {
-    // A broken jacket must not block playback; keep the stock screens.
-    console.warn('[SiriusChartViewer] cover:', e)
-  }
-}
-
-// Source changes are coalesced: a change arriving mid-load is picked up by the
-// running loop (music before chart so the timeline knows the BGM length).
-const dirty = { music: false, chart: false, cover: false }
+// Every generation is a complete source set. A slow retired load can never
+// unlock playback or publish a loaded event for a newer selection.
+let generation = 0
 let running = false
+let request: AbortController | null = null
 
-function reload(parts: Partial<typeof dirty>) {
-  dirty.music ||= !!parts.music
-  dirty.chart ||= !!parts.chart
-  dirty.cover ||= !!parts.cover
-  if (running || !viewer.value) return
-  running = true
-  void runReload().finally(() => (running = false))
+function reload() {
+  generation++
+  request?.abort()
+  viewer.value?.transport.pause()
+  playing.value = false
+  loading.value = true
+  error.value = ''
+  if (!viewer.value || running || props.pending || disposed) return
+  void runReload()
 }
 
 async function runReload() {
-  loading.value = true
-  error.value = ''
+  running = true
   try {
-    while ((dirty.music || dirty.chart || dirty.cover) && !disposed) {
-      if (dirty.music) {
-        dirty.music = false
-        await loadMusic()
-      } else if (dirty.cover) {
-        dirty.cover = false
-        await loadCover()
-      } else {
-        dirty.chart = false
-        await loadChart()
+    while (!disposed && !props.pending) {
+      const version = generation
+      const v = viewer.value!
+      const controller = new AbortController()
+      request = controller
+      const current = () => !disposed && version === generation && !props.pending
+      const init = { ...props.fetchInit, signal: props.fetchInit?.signal
+        ? AbortSignal.any([controller.signal, props.fetchInit.signal]) : controller.signal }
+      const chartSource = props.chart
+      const name = props.chartName || sourceName(chartSource) || 'chart.csv'
+      try {
+        const [data, config, audio, jacket] = await Promise.all([
+          chartSource ? readSource(chartSource, init) : null,
+          props.musicConfig ? readSource(props.musicConfig, init) : undefined,
+          props.music ? readSource(props.music, init) : null,
+          props.cover ? readSource(props.cover, init) : null,
+        ])
+        if (!current()) continue
+        await v.loadMusic(audio)
+        if (!current()) continue
+        await v.setCover(jacket)
+        if (!current()) continue
+        chartInfo.value = data ? v.loadChart({ name, data, musicConfig: config }) : undefined
+        loading.value = false
+        if (chartInfo.value) emit('loaded', chartInfo.value)
+        if (current() && props.autoplay) await play()
+      } catch (e) {
+        if (current()) { loading.value = false; fail(e) }
       }
+      if (current()) break
     }
-    if (props.autoplay && hasChart.value && !disposed) await play()
-  } catch (e) {
-    if (!disposed) fail(e)
   } finally {
-    loading.value = false
+    running = false
+    request = null
   }
 }
 
-watch(() => [props.chart, props.chartName, props.musicConfig], () => reload({ chart: true }))
-watch(() => props.music, () => reload({ music: true }))
-watch(() => props.cover, () => reload({ cover: true }))
+watch(() => [props.chart, props.chartName, props.musicConfig, props.music, props.cover, props.pending, props.fetchInit],
+  reload, { flush: 'sync' })
 
 async function play() {
   const v = viewer.value
-  if (!v || !hasChart.value) return
+  if (!v || !canPlay.value) return
   try {
     await v.transport.play()
   } catch (e) {
@@ -193,7 +181,7 @@ function toggle() {
 }
 
 function seek(t: number) {
-  viewer.value?.transport.seek(t)
+  if (canPlay.value) viewer.value?.transport.seek(t)
 }
 
 function onSeekInput(e: Event) {
@@ -244,10 +232,10 @@ let instance: ChartViewer | null = null
 
 onMounted(async () => {
   uiRaf = requestAnimationFrame(syncUi)
-  const v = new ChartViewer(canvas.value!)
-  instance = v
-  v.transport.onEnded = () => emit('ended')
   try {
+    const v = new ChartViewer(canvas.value!)
+    instance = v
+    v.transport.onEnded = () => emit('ended')
     await v.init(props.assetBase)
     if (disposed) return
     viewer.value = v
@@ -255,7 +243,7 @@ onMounted(async () => {
     engineReady.value = true
     emit('ready')
     loading.value = false
-    reload({ music: !!props.music, chart: !!props.chart, cover: !!props.cover })
+    reload()
   } catch (e) {
     loading.value = false
     if (!disposed) fail(e)
@@ -264,6 +252,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   disposed = true
+  generation++
+  request?.abort()
   cancelAnimationFrame(uiRaf)
   instance?.dispose()
   instance = null
@@ -278,28 +268,28 @@ defineExpose({ play, pause, toggle, seek, viewer })
     <section class="scv__stage">
       <canvas ref="canvas" @click="toggle" @dblclick.stop="toggleFullscreen" />
 
-      <div v-if="loading" class="scv__overlay scv__overlay--dim">
+      <div v-if="loading || pending" class="scv__overlay scv__overlay--dim" role="status" aria-live="polite">
         <span class="scv__spinner" />
-        <span>{{ engineReady ? '正在加载谱面…' : '正在加载预览引擎…' }}</span>
+        <span>{{ engineReady ? '正在加载谱面、音乐与画面资源…' : '正在加载预览引擎…' }}</span>
       </div>
       <div v-else-if="engineReady && !hasChart && !error" class="scv__overlay">
         <slot name="empty">没有谱面</slot>
       </div>
       <button
-        v-else-if="hasChart && !playing && !error"
+        v-else-if="canPlay && !playing"
         class="scv__big-play"
         aria-label="播放"
         @click="play"
       >
         ▶
       </button>
-      <div v-if="error" class="scv__error" role="alert" @click="error = ''">{{ error }}</div>
+      <div v-if="error" class="scv__error" role="alert">{{ error }} <button v-if="engineReady" type="button" @click="reload">重试加载</button></div>
 
       <SettingsPanel v-if="showSettings" v-model="settings" class="scv__settings" @close="showSettings = false" />
     </section>
 
     <footer class="scv__controls">
-      <button class="scv__play" :disabled="!hasChart" :aria-label="playing ? '暂停' : '播放'" @click="toggle">
+      <button class="scv__play" :disabled="!canPlay" :aria-label="playing ? '暂停' : '播放'" @click="toggle">
         {{ playing ? '❚❚' : '▶' }}
       </button>
       <span class="scv__time">{{ formatTime(time) }}</span>
@@ -311,7 +301,7 @@ defineExpose({ play, pause, toggle, seek, viewer })
         :max="Math.max(duration, startTime + 0.01)"
         step="0.01"
         :value="time"
-        :disabled="!hasChart"
+        :disabled="!canPlay"
         @input="onSeekInput"
       />
       <span class="scv__time scv__time--total">{{ formatTime(duration) }}</span>
