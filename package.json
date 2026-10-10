@@ -30,7 +30,8 @@
     "build": "npm run sync:assets && npm run build:wasm && vue-tsc --noEmit && vite build",
     "typecheck": "vue-tsc --noEmit",
     "preview": "vite preview",
-    "build:lib": "npm run sync:assets && npm run build:wasm && node ./scripts/build-lib.mjs"
+    "build:lib": "npm run sync:assets && npm run build:wasm && node ./scripts/build-lib.mjs",
+    "test": "node --test tests/*.test.mjs"
   },
   "peerDependencies": {
     "vue": "^3.4.0"
