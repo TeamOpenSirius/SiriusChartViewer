@@ -1,12 +1,11 @@
 {
-  "name": "sirius-chart-viewer",
-  "private": true,
-  "version": "0.1.0",
+  "name": "@team-opensirius/sirius-chart-viewer",
+  "version": "0.2.0",
   "description": "Web 3D chart previewer for World Dai Star, built on the wds-editor preview core (WebAssembly + WebGL2).",
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TeamOpenSirius/SiriusChartViewer"
+    "url": "git+https://github.com/TeamOpenSirius/SiriusChartViewer.git"
   },
   "type": "module",
   "files": [
@@ -21,6 +20,9 @@
     },
     "./style.css": "./dist-lib/sirius-chart-viewer.css",
     "./assets/*": "./dist-lib/assets/*"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "test:wasm": "node --test tests/wasm-preview.test.mjs",

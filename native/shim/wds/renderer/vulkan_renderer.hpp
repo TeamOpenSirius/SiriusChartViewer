@@ -14,6 +14,7 @@
 #include "draw_batch.hpp"
 #include "draw_types.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <vector>
@@ -43,6 +44,28 @@ enum class WebBlend : uint32_t {
   Additive = 1,  // SRC_ALPHA / ONE
 };
 
+enum class RendererHealth : uint8_t {
+  Uninitialized = 0,
+  Ready,
+  Occluded,
+  SurfaceLost,
+  DeviceLost,
+  Fatal,
+};
+
+struct RendererPathSample {
+  int64_t create_texture_rgba_us = 0;
+  int64_t upload_fence_wait_us = 0;
+  int64_t upload_submit_us = 0;
+  int64_t upload_fence_reap_us = 0;
+  int64_t descriptor_allocate_us = 0;
+};
+
+struct RendererPathSnapshot {
+  RendererPathSample last{};
+  RendererPathSample total{};
+};
+
 struct WebDrawCommand {
   uint32_t blend = 0;
   uint32_t texture = 0;
@@ -69,14 +92,50 @@ class VulkanRenderer {
     bool valid() const noexcept { return w > 0 && h > 0; }
   };
 
+  struct DrawFrameExtras {
+    const DrawBatch* const* early_extra = nullptr;
+    size_t early_extra_n = 0;
+    const DrawBatch* const* mid_prefix = nullptr;
+    size_t mid_prefix_n = 0;
+    const DrawBatch* const* carve_prefix = nullptr;
+    size_t carve_prefix_n = 0;
+    bool extras_in_mapped_vb = false;
+    uint32_t mapped_extra_low = 0;
+  };
+
+  struct PersistentVbLock {
+    DrawVertex* mapped = nullptr;
+    size_t capacity_bytes = 0;
+    uint32_t* idx_mapped = nullptr;
+    size_t idx_capacity_bytes = 0;
+    uint32_t frame = 0;
+  };
+
+  struct DrawFrameDump {
+    DrawBatch* scene = nullptr;
+    DrawBatch* glow = nullptr;
+    DrawBatch* notes = nullptr;
+    DrawBatch* late = nullptr;
+    DrawBatch* additive = nullptr;
+  };
+
   bool create(const VulkanHostSurface& host);
   void destroy();
   bool ready() const noexcept { return ready_; }
+  RendererHealth health() const noexcept {
+    return ready_ ? RendererHealth::Ready : RendererHealth::Uninitialized;
+  }
   void device_wait_idle() noexcept {}
 
   void set_preferred_msaa(int samples) noexcept { msaa_ = samples; }
   void apply_msaa(int samples) noexcept { msaa_ = samples; }
   int active_msaa() const noexcept { return msaa_; }
+  RendererPathSnapshot path_diagnostics() const noexcept { return {}; }
+  int64_t last_gpu_submit_us() const noexcept { return 0; }
+  size_t persistent_vertex_ring_bytes() const noexcept { return 0; }
+  bool lock_persistent_vb(size_t, PersistentVbLock*, size_t = 0) { return false; }
+  void set_syuriken_uniforms(float, TextureId) noexcept {}
+  bool syuriken_ready() const noexcept { return false; }
 
   uint32_t device_api_version() const noexcept { return 0; }
   uint32_t device_driver_version() const noexcept { return 0; }
@@ -99,7 +158,12 @@ class VulkanRenderer {
                   const DrawBatch* post_overlay = nullptr,
                   const DrawBatch* post_overlay2 = nullptr,
                   const ScissorRect* additive_scissor = nullptr,
-                  const DrawBatch* mid_overlay = nullptr);
+                  const DrawBatch* mid_overlay = nullptr,
+                  const DrawBatch* early_additive = nullptr,
+                  const DrawBatch* scene_carve = nullptr,
+                  const DrawBatch* playfield_hud = nullptr,
+                  const DrawFrameExtras* extras = nullptr,
+                  DrawFrameDump* dump = nullptr);
 
   // ---- JS bridge (read after draw_frame) ----
   const std::vector<DrawVertex>& frame_vertices() const noexcept { return vertices_; }

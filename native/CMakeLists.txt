@@ -42,13 +42,24 @@ list(TRANSFORM WDS_CORE_SOURCES PREPEND "${WDS_ROOT}/core/src/")
 
 set(WDS_CHART_RENDER_SOURCES
   stage_geometry.cpp skin_catalog.cpp split_line_skins.cpp split_line_official_colors.cpp
-  note_strips.cpp note_visual_policy.cpp)
+  note_strips.cpp note_visual_policy.cpp split_effect_particles.cpp
+  split_wall_profile.cpp openwds_shuriken_bind.cpp
+  shuriken/emit.cpp shuriken/shape.cpp shuriken/integrate.cpp shuriken/simd_dispatch.cpp
+  shuriken/modules.cpp shuriken/modules_an.cpp shuriken/evaluate.cpp
+  shuriken/split_eval_cache.cpp shuriken/split_eval_carry.cpp shuriken/split_eval_persist.cpp)
 list(TRANSFORM WDS_CHART_RENDER_SOURCES PREPEND "${WDS_ROOT}/chart-render/src/")
+list(APPEND WDS_CHART_RENDER_SOURCES
+  "${WDS_ROOT}/chart-render/openwds-split-effects/src/resources.cpp"
+  "${WDS_ROOT}/chart-render/openwds-split-effects/src/controller.cpp")
 
 add_executable(sirius_viewer
   ${WDS_CORE_SOURCES}
   ${WDS_CHART_RENDER_SOURCES}
   "${WDS_ROOT}/common/src/utf8_path.cpp"
+  "${WDS_ROOT}/common/src/perf_stages.cpp"
+  "${WDS_ROOT}/common/src/minflt_stage.cpp"
+  "${WDS_ROOT}/chart-render/src/unity_api.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/web_split_collect_pool.cpp"
   "${WDS_ROOT}/renderer/src/texture.cpp"
   "${WDS_ROOT}/audio-player/src/hit_sfx.cpp"
   "${WDS_ROOT}/ui/src/regions/preview/playback_preview.cpp"
@@ -67,6 +78,11 @@ target_include_directories(sirius_viewer PRIVATE
   "${WDS_ROOT}/renderer/include"
   "${WDS_ROOT}/renderer/third_party"
   "${WDS_ROOT}/chart-render/include"
+  # PlaybackPreviewView includes the chart-render split pool by its private
+  # header name; keep the upstream source directory available without editing
+  # the vendored wds-editor file.
+  "${WDS_ROOT}/chart-render/src"
+  "${WDS_ROOT}/chart-render/openwds-split-effects/include"
   "${WDS_ROOT}/audio-player/include"
   "${WDS_ROOT}/interaction-interface/include"
   "${WDS_ROOT}/ui/include"

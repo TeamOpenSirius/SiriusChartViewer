@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -40,6 +42,60 @@ struct Viewer {
 };
 
 Viewer* g_viewer = nullptr;
+
+bool validate_web_csv_geometry(const char* path, std::string& error) {
+  std::ifstream input(path != nullptr ? path : "");
+  if (!input) {
+    return true;  // The editor loader will report the real file error.
+  }
+  std::string line;
+  int line_number = 0;
+  while (std::getline(input, line)) {
+    ++line_number;
+    if (line.empty()) {
+      continue;
+    }
+    std::vector<std::string> fields;
+    std::stringstream row(line);
+    std::string field;
+    while (std::getline(row, field, ',')) {
+      fields.push_back(field);
+    }
+    if (fields.size() != 5 && fields.size() != 7) {
+      continue;  // The upstream parser owns the column-count diagnostic.
+    }
+    char* end = nullptr;
+    const long type = std::strtol(fields[2].c_str(), &end, 10);
+    if (end == fields[2].c_str() || *end != '\0') {
+      continue;
+    }
+    const long lane = std::strtol(fields[3].c_str(), &end, 10);
+    if (end == fields[3].c_str() || *end != '\0') {
+      continue;
+    }
+    const long width = std::strtol(fields[4].c_str(), &end, 10);
+    if (end == fields[4].c_str() || *end != '\0') {
+      continue;
+    }
+    if (type == -1) {
+      const double speed = std::strtod(fields[1].c_str(), &end);
+      if (!std::isfinite(speed) || speed <= 0.0) {
+        error = "CSV 谱面包含无效的变速行（第 " + std::to_string(line_number) + " 行）。";
+        return false;
+      }
+      continue;
+    }
+    // The Refresh profile permits overhang, but the note must still overlap
+    // the 12-lane playfield; preserve the viewer's historical rejection of
+    // completely off-screen spans.
+    if (width < 1 || lane >= 12 || lane + width <= 0) {
+      error = "CSV 谱面包含越出 12 轨道且没有重叠的音符（第 " +
+              std::to_string(line_number) + " 行）。";
+      return false;
+    }
+  }
+  return true;
+}
 
 void sync_core_config(Viewer& v) {
   const auto& visual = v.preview.config();
@@ -163,6 +219,10 @@ EMSCRIPTEN_KEEPALIVE int wv_init(int fb_w, int fb_h) {
   }
   g_viewer = new Viewer();
   auto& v = *g_viewer;
+  // Emscripten builds without pthreads; upstream's optional async texture
+  // preload uses std::async(launch::async), which throws system_error there.
+  // The regular frame path still loads the same textures synchronously.
+  (void)setenv("WDS_PREVIEW_NO_PRELOAD", "1", 1);
   PreviewVisualConfig visual;
   visual.skins_directory = "/skins";
   visual.effects_directory = "";
@@ -219,6 +279,12 @@ EMSCRIPTEN_KEEPALIVE int wv_load_chart(const char* chart_path, const char* music
     return 0;
   }
   auto& v = *g_viewer;
+  const std::string chart_path_text = chart_path != nullptr ? chart_path : "";
+  const bool is_csv = chart_path_text.size() >= 4 &&
+                      chart_path_text.compare(chart_path_text.size() - 4, 4, ".csv") == 0;
+  if (is_csv && !validate_web_csv_geometry(chart_path, v.last_error)) {
+    return 0;
+  }
   const auto result = v.engine.load_auto_from_file(
       chart_path != nullptr ? chart_path : "",
       music_config_path != nullptr ? music_config_path : "");

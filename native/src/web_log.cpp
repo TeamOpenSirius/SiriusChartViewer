@@ -9,6 +9,8 @@
 
 namespace wds::common {
 
+void install_thread_crash_stack() {}
+
 void log_ring_append(const char* fmt, ...) {
 #if defined(WDS_WEB_VERBOSE_LOG) && WDS_WEB_VERBOSE_LOG
   std::fputs("[wds] ", stderr);

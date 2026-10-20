@@ -135,7 +135,11 @@ bool VulkanRenderer::draw_frame(const DrawBatch& batch, const ScreenBounds& scre
                                 float clear_g, float clear_b, const DrawBatch* additive,
                                 const DrawBatch* post_overlay, const DrawBatch* post_overlay2,
                                 const ScissorRect* additive_scissor,
-                                const DrawBatch* mid_overlay) {
+                                const DrawBatch* mid_overlay, const DrawBatch* early_additive,
+                                const DrawBatch* scene_carve, const DrawBatch* playfield_hud,
+                                const DrawFrameExtras* extras, DrawFrameDump* dump) {
+  (void)extras;
+  (void)dump;
   vertices_.clear();
   commands_.clear();
   clear_[0] = clear_r;
@@ -149,8 +153,17 @@ bool VulkanRenderer::draw_frame(const DrawBatch& batch, const ScreenBounds& scre
   if (mid_overlay != nullptr) {
     append_pass(*mid_overlay, WebBlend::Alpha);
   }
+  if (early_additive != nullptr) {
+    append_pass(*early_additive, WebBlend::Additive);
+  }
+  if (scene_carve != nullptr) {
+    append_pass(*scene_carve, WebBlend::Additive);
+  }
   if (additive != nullptr) {
     append_pass(*additive, WebBlend::Additive);
+  }
+  if (playfield_hud != nullptr) {
+    append_pass(*playfield_hud, WebBlend::Alpha);
   }
   if (post_overlay != nullptr) {
     append_pass(*post_overlay, WebBlend::Alpha);

@@ -71,6 +71,13 @@ class AudioEngine {
     hold_looping_ = enabled;
     push(WebSfxCommandKind::HoldLoop, enabled ? 1 : 0, 0);
   }
+  // The native engine defers this clock reconciliation when a mixer-thread
+  // hold gate has already moved the audible state ahead of the UI clock. The
+  // Web Audio shim executes gates as frame commands, so the queued HoldLoop
+  // state is the single source of truth and can be applied directly here.
+  void reconcile_hold_looping(bool desired_by_clock) {
+    set_hold_looping(desired_by_clock);
+  }
   bool hold_looping() const noexcept { return hold_looping_; }
   void stop_all_sfx() {
     hold_looping_ = false;
