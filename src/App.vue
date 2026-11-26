@@ -9,6 +9,7 @@ import type { ChartSource } from './lib/viewer'
 const AUDIO_EXT = /\.(ogg|mp3|wav|m4a|aac|flac|opus|webm)$/i
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif|avif|bmp)$/i
 const assetBase = import.meta.env.BASE_URL
+const logoUrl = `${assetBase}logo.png`
 
 const chart = shallowRef<ChartSource | null>(null)
 const chartName = ref('')
@@ -122,7 +123,7 @@ function onLoaded() {
   >
     <header class="topbar">
       <div class="brand">
-        <img src="/logo.png" alt="Sirius Chart Viewer" />
+        <img :src="logoUrl" alt="Sirius Chart Viewer" />
         <div class="brand__text">
           <span class="brand__name">{{ PROJECT_INFO.name }}</span>
           <span class="brand__ver">v{{ PROJECT_INFO.version }}</span>

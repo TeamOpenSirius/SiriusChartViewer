@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://teamopensirius.github.io/SiriusChartViewer/"><strong>Live Online Preview</strong></a> ·
   <a href="./README.md"><strong>English</strong></a> ·
   <a href="./README-CN.md">简体中文</a>
 </p>

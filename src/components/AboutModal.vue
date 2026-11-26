@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted } from 'vue'
 import { PROJECT_INFO } from '../lib/projectInfo'
 
 const emit = defineEmits<{ close: [] }>()
+const logoUrl = `${import.meta.env.BASE_URL}logo.png`
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
@@ -22,7 +23,7 @@ onBeforeUnmount(() => {
     <div class="about-dialog" role="dialog" aria-modal="true" aria-labelledby="about-title">
       <header class="about-header">
         <div class="about-brand">
-          <img class="about-logo" src="/logo.png" alt="Sirius Chart Viewer" />
+          <img class="about-logo" :src="logoUrl" alt="Sirius Chart Viewer" />
           <div>
             <div class="about-title-row">
               <h2 id="about-title">{{ PROJECT_INFO.name }}</h2>
