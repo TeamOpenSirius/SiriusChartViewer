@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue'
+import { useI18n } from '../lib/i18n'
 import { PROJECT_INFO } from '../lib/projectInfo'
 
 const emit = defineEmits<{ close: [] }>()
 const logoUrl = `${import.meta.env.BASE_URL}logo.png`
+const { t } = useI18n()
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
@@ -32,7 +34,7 @@ onBeforeUnmount(() => {
             <p class="about-pkg">{{ PROJECT_INFO.packageName }}</p>
           </div>
         </div>
-        <button class="about-close" type="button" title="关闭 (Esc)" aria-label="关闭关于窗口" @click="emit('close')">
+        <button class="about-close" type="button" :title="t.about.close" :aria-label="t.about.closeAria" @click="emit('close')">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
@@ -40,7 +42,7 @@ onBeforeUnmount(() => {
       </header>
 
       <div class="about-body">
-        <p class="about-desc">{{ PROJECT_INFO.description }}</p>
+        <p class="about-desc">{{ t.about.description }}</p>
 
         <div class="about-tags">
           <span v-for="tech in PROJECT_INFO.techStack" :key="tech" class="about-tag">{{ tech }}</span>
@@ -48,7 +50,7 @@ onBeforeUnmount(() => {
 
         <dl class="about-meta">
           <div class="about-row">
-            <dt>开源仓库</dt>
+            <dt>{{ t.about.repository }}</dt>
             <dd>
               <a :href="PROJECT_INFO.repositoryUrl" target="_blank" rel="noopener noreferrer">
                 TeamOpenSirius/SiriusChartViewer
@@ -61,7 +63,7 @@ onBeforeUnmount(() => {
             </dd>
           </div>
           <div class="about-row">
-            <dt>上游预览核心</dt>
+            <dt>{{ t.about.upstream }}</dt>
             <dd>
               <a :href="PROJECT_INFO.upstreamUrl" target="_blank" rel="noopener noreferrer">
                 TeamOpenSirius/wds-editor
@@ -74,7 +76,7 @@ onBeforeUnmount(() => {
             </dd>
           </div>
           <div class="about-row">
-            <dt>开源许可证</dt>
+            <dt>{{ t.about.license }}</dt>
             <dd>
               <a :href="PROJECT_INFO.licenseUrl" target="_blank" rel="noopener noreferrer" class="about-license">
                 {{ PROJECT_INFO.license }}
@@ -84,21 +86,21 @@ onBeforeUnmount(() => {
         </dl>
 
         <section class="about-shortcuts">
-          <h3>快捷键</h3>
+          <h3>{{ t.about.shortcuts }}</h3>
           <div class="shortcut-grid">
-            <div class="shortcut-item"><kbd>Space</kbd><span>播放 / 暂停</span></div>
-            <div class="shortcut-item"><kbd>←</kbd><kbd>→</kbd><span>快退 / 快进 5 秒</span></div>
-            <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd><span>微调 1 秒</span></div>
-            <div class="shortcut-item"><kbd>Home</kbd><span>回到开头</span></div>
-            <div class="shortcut-item"><kbd>F</kbd><span>切换全屏</span></div>
-            <div class="shortcut-item"><kbd>双击画面</kbd><span>切换全屏</span></div>
+            <div class="shortcut-item"><kbd>Space</kbd><span>{{ t.about.scPlayPause }}</span></div>
+            <div class="shortcut-item"><kbd>←</kbd><kbd>→</kbd><span>{{ t.about.scSeek5 }}</span></div>
+            <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>←</kbd><kbd>→</kbd><span>{{ t.about.scSeek1 }}</span></div>
+            <div class="shortcut-item"><kbd>Home</kbd><span>{{ t.about.scHome }}</span></div>
+            <div class="shortcut-item"><kbd>F</kbd><span>{{ t.about.scFullscreen }}</span></div>
+            <div class="shortcut-item"><kbd>{{ t.about.scDblClickKey }}</kbd><span>{{ t.about.scDblClick }}</span></div>
           </div>
         </section>
       </div>
 
       <footer class="about-footer">
-        <span class="about-note">本软件依据 GPL v3 许可证开源发布</span>
-        <button class="about-ok" type="button" @click="emit('close')">关闭</button>
+        <span class="about-note">{{ t.about.footerNote }}</span>
+        <button class="about-ok" type="button" @click="emit('close')">{{ t.about.ok }}</button>
       </footer>
     </div>
   </div>

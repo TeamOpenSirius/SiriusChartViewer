@@ -2,6 +2,7 @@
 // (upstream PlaybackPreviewView decides *what* to play and *when*; this only plays).
 
 import type { AudioTransport } from './audioTransport'
+import { getMessages } from './i18n'
 import type { ViewerModule } from './wasm'
 
 // wds::audio::HitSfxClip order → file (audio-player/src/audio_engine.cpp filename_for).
@@ -50,20 +51,20 @@ export class SfxPlayer {
     const ctx = this.transport.ctx
     const fetchBuffer = async (name: string) => {
       const res = await fetch(new URL(encodeURIComponent(name), baseUrl))
-      if (!res.ok) throw new Error(`音效加载失败 ${res.status}: ${name}`)
+      if (!res.ok) throw new Error(getMessages().errors.sfxLoadFailed(res.status, name))
       return await ctx.decodeAudioData(await res.arrayBuffer())
     }
     const [buffers, region] = await Promise.all([
       Promise.all(CLIP_FILES.map(fetchBuffer)),
       fetch(new URL('hold_loop.json', baseUrl))
         .then(r => {
-          if (!r.ok) throw new Error(`长按音效配置加载失败 ${r.status}`)
+          if (!r.ok) throw new Error(getMessages().errors.holdLoopLoadFailed(r.status))
           return r.json()
         }),
     ])
     this.buffers.splice(0, this.buffers.length, ...buffers)
     if (!region || !Number.isFinite(region.start_ms) || !Number.isFinite(region.end_ms)
-      || region.start_ms < 0 || region.end_ms <= region.start_ms) throw new Error('长按音效配置无效')
+      || region.start_ms < 0 || region.end_ms <= region.start_ms) throw new Error(getMessages().errors.holdLoopInvalid)
     this.holdRegion = { start: region.start_ms / 1000, end: region.end_ms / 1000 }
     this.ready = true
   }

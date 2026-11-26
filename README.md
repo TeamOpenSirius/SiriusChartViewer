@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="https://teamopensirius.github.io/SiriusChartViewer/"><img src="https://img.shields.io/badge/Live%20Preview-GitHub%20Pages-5c6ef2?logo=githubpages&logoColor=white" alt="Live Preview" /></a>
   <a href="https://github.com/TeamOpenSirius/SiriusChartViewer/actions/workflows/build.yml"><img src="https://github.com/TeamOpenSirius/SiriusChartViewer/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only" /></a>
   <img src="https://img.shields.io/badge/Vue-3.4%2B-42b883?logo=vuedotjs&logoColor=white" alt="Vue 3" />
@@ -24,6 +25,14 @@
 </p>
 
 ---
+
+## Live Preview
+
+Try **Sirius Chart Viewer** directly in your browser — no installation required:
+
+- **Online Preview**: <https://teamopensirius.github.io/SiriusChartViewer/>
+- Drop a local `.wdschart` / `.csv` / `.sus` file (optionally with audio, cover art, and `music_config.csv`) onto the page, or pass remote URLs via query parameters.
+- Automatically matches your system language (**Chinese** for Chinese locales, **English** otherwise), with a one-click language switch in the top bar.
 
 ## Overview
 

@@ -20,6 +20,7 @@ export class ChartViewer {
 `)
 code = code.replaceAll("'../lib/viewer'", `'${mocks}'`)
   .replaceAll("'../lib/settings'", `'${url(`import { reactive } from '${import.meta.resolve('vue')}'; export function useSettings() { return reactive({ playbackRate: 1 }) }`)}'`)
+  .replaceAll("'../lib/i18n'", `'${url(`import { computed } from '${import.meta.resolve('vue')}'; export function useI18n() { return { t: computed(() => ({ viewer: { initEngine: '', initEngineSub: '', waitPending: '', waitPendingSub: '', pleaseWait: '', readingPrefix: '', readingSuffix: '', targetChart: '', targetMusic: '', targetCover: '', targetConfig: '', targetResources: '', listSep: ', ', decodingAudioAndCover: '', decodingAudio: '', processingCover: '', parsingChart: '', noChart: '', play: 'Play', pause: 'Pause', seek: 'Seek', comboTitle: '', playbackRate: '', settings: '', settingsTitle: '', fullscreen: '', fullscreenTitle: '', exitFullscreen: '', exitFullscreenTitle: '', retry: 'Retry' } })) } }`)}'`)
   .replaceAll("'./SettingsPanel.vue'", `'${url('export default { render() { return null } }')}'`)
   .replace(/from ["']vue["']/g, `from '${import.meta.resolve('vue')}'`)
 const Viewer = (await import(url(code))).default

@@ -3,8 +3,11 @@
 import { onMounted, ref, shallowRef } from 'vue'
 import AboutModal from './components/AboutModal.vue'
 import SiriusChartViewer from './components/SiriusChartViewer.vue'
+import { useI18n } from './lib/i18n'
 import { PROJECT_INFO } from './lib/projectInfo'
 import type { ChartSource } from './lib/viewer'
+
+const { locale, t, toggleLocale } = useI18n()
 
 const AUDIO_EXT = /\.(ogg|mp3|wav|m4a|aac|flac|opus|webm)$/i
 const IMAGE_EXT = /\.(png|jpe?g|webp|gif|avif|bmp)$/i
@@ -134,22 +137,22 @@ function onLoaded() {
         <div class="chips">
           <span v-if="chartName" class="chip chip--chart" :title="chartName">
             <span class="chip__dot" />
-            <span class="chip__text">谱面 · {{ chartName }}</span>
+            <span class="chip__text">{{ t.app.chipChart }} · {{ chartName }}</span>
           </span>
           <span v-if="musicName" class="chip chip--music" :title="musicName">
             <span class="chip__dot" />
-            <span class="chip__text">音乐 · {{ musicName }}</span>
-            <button class="chip__clear" type="button" title="移除音乐" aria-label="移除音乐" @click="clearSource('music')">×</button>
+            <span class="chip__text">{{ t.app.chipMusic }} · {{ musicName }}</span>
+            <button class="chip__clear" type="button" :title="t.app.removeMusic" :aria-label="t.app.removeMusic" @click="clearSource('music')">×</button>
           </span>
           <span v-if="configName" class="chip chip--config" :title="configName">
             <span class="chip__dot" />
-            <span class="chip__text">配置 · {{ configName }}</span>
-            <button class="chip__clear" type="button" title="移除配置" aria-label="移除配置" @click="clearSource('config')">×</button>
+            <span class="chip__text">{{ t.app.chipConfig }} · {{ configName }}</span>
+            <button class="chip__clear" type="button" :title="t.app.removeConfig" :aria-label="t.app.removeConfig" @click="clearSource('config')">×</button>
           </span>
           <span v-if="coverName" class="chip chip--cover" :title="coverName">
             <span class="chip__dot" />
-            <span class="chip__text">封面 · {{ coverName }}</span>
-            <button class="chip__clear" type="button" title="移除封面" aria-label="移除封面" @click="clearSource('cover')">×</button>
+            <span class="chip__text">{{ t.app.chipCover }} · {{ coverName }}</span>
+            <button class="chip__clear" type="button" :title="t.app.removeCover" :aria-label="t.app.removeCover" @click="clearSource('cover')">×</button>
           </span>
         </div>
 
@@ -159,7 +162,7 @@ function onLoaded() {
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-          <span>打开文件</span>
+          <span>{{ t.app.openFiles }}</span>
           <input
             ref="fileInput"
             type="file"
@@ -170,13 +173,17 @@ function onLoaded() {
           />
         </label>
 
-        <button class="btn icon-label" type="button" title="关于项目" aria-label="关于项目" @click="showAbout = true">
+        <button class="btn lang-btn" type="button" :title="t.app.switchLangTitle" :aria-label="t.app.switchLangTitle" @click="toggleLocale">
+          {{ locale === 'zh' ? 'EN' : '中' }}
+        </button>
+
+        <button class="btn icon-label" type="button" :title="t.app.aboutTitle" :aria-label="t.app.aboutTitle" @click="showAbout = true">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="16" x2="12" y2="12" />
             <line x1="12" y1="8" x2="12.01" y2="8" />
           </svg>
-          <span class="btn__label">关于</span>
+          <span class="btn__label">{{ t.app.about }}</span>
         </button>
       </div>
     </header>
@@ -202,8 +209,8 @@ function onLoaded() {
                 <path d="m9 15 3-3 3 3" />
               </svg>
             </div>
-            <p class="empty-card__title">拖入谱面文件，或点击此处选择</p>
-            <p class="empty-card__desc">支持同时选择或拖入谱面、音频、封面图与时间配置文件</p>
+            <p class="empty-card__title">{{ t.app.emptyTitle }}</p>
+            <p class="empty-card__desc">{{ t.app.emptyDesc }}</p>
             <div class="empty-card__formats">
               <code>.wdschart</code>
               <code>.csv</code>
@@ -224,7 +231,7 @@ function onLoaded() {
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            <span>松开鼠标以加载文件</span>
+            <span>{{ t.app.dropHint }}</span>
           </div>
         </div>
       </Transition>
@@ -380,6 +387,12 @@ function onLoaded() {
 }
 .btn.primary:hover {
   filter: brightness(1.08);
+}
+.lang-btn {
+  min-width: 38px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
 }
 .body {
   position: relative;

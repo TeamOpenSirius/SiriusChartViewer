@@ -3,6 +3,7 @@
 // as File, Blob, ArrayBuffer, Uint8Array or URL; the player loads it and is ready to play.
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import SettingsPanel from './SettingsPanel.vue'
+import { useI18n } from '../lib/i18n'
 import { useSettings } from '../lib/settings'
 import { ChartViewer, readSource, sourceName, type ChartInfo, type ChartSource } from '../lib/viewer'
 
@@ -48,10 +49,13 @@ const root = ref<HTMLElement>()
 const canvas = ref<HTMLCanvasElement>()
 const viewer = shallowRef<ChartViewer>()
 const settings = useSettings()
+const { t } = useI18n()
+
+type LoadPhase = 'init' | 'reading' | 'decoding-both' | 'decoding-audio' | 'decoding-cover' | 'parsing'
 
 const engineReady = ref(false)
 const loading = ref(true)
-const loadStage = ref('正在初始化预览引擎与音效…')
+const loadPhase = ref<LoadPhase>('init')
 const loadProgress = ref<number | null>(null)
 const error = ref('')
 const chartInfo = ref<ChartInfo>()
@@ -78,16 +82,31 @@ const seekPercent = computed(() => {
 })
 
 const loadingMessage = computed(() => {
-  if (!engineReady.value) return '正在初始化预览引擎与音效…'
-  if (props.pending) return '正在等待谱面与媒体资源…'
-  return loadStage.value
+  const v = t.value.viewer
+  if (!engineReady.value) return v.initEngine
+  if (props.pending) return v.waitPending
+  switch (loadPhase.value) {
+    case 'reading':
+      return `${v.readingPrefix}${describeTargets()}${v.readingSuffix}`
+    case 'decoding-both':
+      return v.decodingAudioAndCover
+    case 'decoding-audio':
+      return v.decodingAudio
+    case 'decoding-cover':
+      return v.processingCover
+    case 'parsing':
+      return v.parsingChart
+    default:
+      return v.initEngine
+  }
 })
 
 const loadingSubtext = computed(() => {
-  if (!engineReady.value) return '首次加载需下载 WebAssembly 核心与打击音效'
-  if (props.pending) return '等待外部数据源就绪'
+  const v = t.value.viewer
+  if (!engineReady.value) return v.initEngineSub
+  if (props.pending) return v.waitPendingSub
   if (loadProgress.value !== null) return `${Math.round(loadProgress.value)}%`
-  return '请稍候'
+  return v.pleaseWait
 })
 
 function formatTime(sec: number) {
@@ -125,12 +144,13 @@ function fail(e: unknown) {
 }
 
 function describeTargets() {
+  const v = t.value.viewer
   const parts: string[] = []
-  if (props.chart) parts.push('谱面')
-  if (props.music) parts.push('音乐')
-  if (props.cover) parts.push('封面')
-  if (props.musicConfig) parts.push('配置')
-  return parts.length ? parts.join('、') : '资源'
+  if (props.chart) parts.push(v.targetChart)
+  if (props.music) parts.push(v.targetMusic)
+  if (props.cover) parts.push(v.targetCover)
+  if (props.musicConfig) parts.push(v.targetConfig)
+  return parts.length ? parts.join(v.listSep) : v.targetResources
 }
 
 // Every generation is a complete source set. A slow retired load can never
@@ -146,7 +166,7 @@ function reload() {
   playing.value = false
   loading.value = true
   loadProgress.value = null
-  loadStage.value = `正在读取${describeTargets()}…`
+  loadPhase.value = 'reading'
   error.value = ''
   if (!viewer.value || running || props.pending || disposed) return
   void runReload()
@@ -172,7 +192,7 @@ async function runReload() {
       const hasAnySource = !!(chartSource || props.musicConfig || props.music || props.cover)
       try {
         if (hasAnySource) {
-          loadStage.value = `正在读取${describeTargets()}…`
+          loadPhase.value = 'reading'
           loadProgress.value = 15
         }
         const [data, config, audio, jacket] = await Promise.all([
@@ -184,18 +204,18 @@ async function runReload() {
         if (!current()) continue
 
         if (audio || jacket) {
-          loadStage.value = audio && jacket
-            ? '正在解码音频并处理封面…'
+          loadPhase.value = audio && jacket
+            ? 'decoding-both'
             : audio
-              ? '正在解码音频…'
-              : '正在处理封面图像…'
+              ? 'decoding-audio'
+              : 'decoding-cover'
           loadProgress.value = 55
         }
         await Promise.all([v.loadMusic(audio), v.setCover(jacket)])
         if (!current()) continue
 
         if (data) {
-          loadStage.value = '正在解析谱面数据…'
+          loadPhase.value = 'parsing'
           loadProgress.value = 88
         }
         chartInfo.value = data ? v.loadChart({ name, data, musicConfig: config }) : undefined
@@ -366,14 +386,14 @@ defineExpose({ play, pause, toggle, seek, viewer })
       </div>
 
       <div v-else-if="engineReady && !hasChart && !error" class="scv__overlay scv__overlay--empty">
-        <slot name="empty">没有谱面</slot>
+        <slot name="empty">{{ t.viewer.noChart }}</slot>
       </div>
 
       <button
         v-else-if="canPlay && !playing"
         class="scv__big-play"
         type="button"
-        aria-label="播放"
+        :aria-label="t.viewer.play"
         @click="play"
       >
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true">
@@ -387,14 +407,14 @@ defineExpose({ play, pause, toggle, seek, viewer })
           <path d="M12 8v4m0 4h.01" stroke-linecap="round" />
         </svg>
         <span class="scv__error-text">{{ error }}</span>
-        <button v-if="engineReady" class="scv__retry" type="button" @click="reload">重试加载</button>
+        <button v-if="engineReady" class="scv__retry" type="button" @click="reload">{{ t.viewer.retry }}</button>
       </div>
 
       <SettingsPanel v-if="showSettings" v-model="settings" class="scv__settings" @close="showSettings = false" />
     </section>
 
     <footer class="scv__controls">
-      <button class="scv__play" type="button" :disabled="!canPlay" :aria-label="playing ? '暂停' : '播放'" @click="toggle">
+      <button class="scv__play" type="button" :disabled="!canPlay" :aria-label="playing ? t.viewer.pause : t.viewer.play" @click="toggle">
         <svg v-if="playing" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
           <rect x="6" y="5" width="4" height="14" rx="1.2" />
           <rect x="14" y="5" width="4" height="14" rx="1.2" />
@@ -409,7 +429,7 @@ defineExpose({ play, pause, toggle, seek, viewer })
       <input
         class="scv__seek"
         type="range"
-        aria-label="进度"
+        :aria-label="t.viewer.seek"
         :min="startTime"
         :max="seekMax"
         step="0.01"
@@ -421,13 +441,13 @@ defineExpose({ play, pause, toggle, seek, viewer })
 
       <span class="scv__time scv__time--total">{{ formatTime(duration) }}</span>
 
-      <span v-if="chartInfo" class="scv__meta" title="当前 Combo / 总 Note 数">
+      <span v-if="chartInfo" class="scv__meta" :title="t.viewer.comboTitle">
         <span class="scv__meta-val">{{ combo }}</span>
         <span class="scv__meta-sep">/</span>
         <span>{{ chartInfo.noteCount }}</span>
       </span>
 
-      <select v-model.number="settings.playbackRate" class="scv__rate" aria-label="播放速度">
+      <select v-model.number="settings.playbackRate" class="scv__rate" :aria-label="t.viewer.playbackRate">
         <option :value="0.5">0.5×</option>
         <option :value="0.75">0.75×</option>
         <option :value="1">1.0×</option>
@@ -440,8 +460,8 @@ defineExpose({ play, pause, toggle, seek, viewer })
         class="scv__btn"
         type="button"
         :class="{ 'is-active': showSettings }"
-        aria-label="设置"
-        title="显示与声音设置"
+        :aria-label="t.viewer.settings"
+        :title="t.viewer.settingsTitle"
         @click="showSettings = !showSettings"
       >
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -454,8 +474,8 @@ defineExpose({ play, pause, toggle, seek, viewer })
         class="scv__btn"
         type="button"
         :class="{ 'is-active': isFullscreen }"
-        :aria-label="isFullscreen ? '退出全屏' : '全屏'"
-        :title="isFullscreen ? '退出全屏 (F)' : '全屏 (F)'"
+        :aria-label="isFullscreen ? t.viewer.exitFullscreen : t.viewer.fullscreen"
+        :title="isFullscreen ? t.viewer.exitFullscreenTitle : t.viewer.fullscreenTitle"
         @click="toggleFullscreen"
       >
         <svg v-if="isFullscreen" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

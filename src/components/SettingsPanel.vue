@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from '../lib/i18n'
 import { DEFAULT_SETTINGS, type Settings } from '../lib/settings'
 
 const settings = defineModel<Settings>({ required: true })
 defineEmits<{ close: [] }>()
+const { t } = useI18n()
 
 function reset() {
   Object.assign(settings.value, DEFAULT_SETTINGS)
@@ -10,10 +12,10 @@ function reset() {
 </script>
 
 <template>
-  <aside class="panel" aria-label="显示与声音设置">
+  <aside class="panel" :aria-label="t.settings.ariaLabel">
     <header class="panel__header">
-      <h2>显示与声音</h2>
-      <button class="icon-btn" type="button" title="关闭 (Esc)" aria-label="关闭设置" @click="$emit('close')">
+      <h2>{{ t.settings.title }}</h2>
+      <button class="icon-btn" type="button" :title="t.settings.close" :aria-label="t.settings.closeAria" @click="$emit('close')">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <path d="M18 6 6 18M6 6l12 12" />
         </svg>
@@ -22,10 +24,10 @@ function reset() {
 
     <div class="panel__body">
       <section class="group">
-        <h3>谱面显示</h3>
+        <h3>{{ t.settings.sectionDisplay }}</h3>
         <label class="field">
           <span class="field__label">
-            <span>流速</span>
+            <span>{{ t.settings.noteSpeed }}</span>
             <b class="badge">{{ settings.noteSpeed.toFixed(1) }}</b>
           </span>
           <input v-model.number="settings.noteSpeed" type="range" min="1" max="25" step="0.1" />
@@ -33,7 +35,7 @@ function reset() {
 
         <label class="field">
           <span class="field__label">
-            <span>挡板</span>
+            <span>{{ t.settings.laneCover }}</span>
             <b class="badge">{{ settings.noteStartOffset }}</b>
           </span>
           <input v-model.number="settings.noteStartOffset" type="range" min="0" max="100" step="5" />
@@ -41,7 +43,7 @@ function reset() {
 
         <label class="field">
           <span class="field__label">
-            <span>Note 厚度</span>
+            <span>{{ t.settings.noteThickness }}</span>
             <b class="badge">{{ settings.noteHeightLevel }}</b>
           </span>
           <input v-model.number="settings.noteHeightLevel" type="range" min="1" max="10" step="1" />
@@ -49,24 +51,24 @@ function reset() {
 
         <label class="field">
           <span class="field__label">
-            <span>分割线特效透明度</span>
+            <span>{{ t.settings.splitLineOpacity }}</span>
             <b class="badge">{{ settings.splitLineOpacity }}%</b>
           </span>
           <input v-model.number="settings.splitLineOpacity" type="range" min="10" max="100" step="10" />
         </label>
 
         <label class="toggle">
-          <span>显示判定文字</span>
+          <span>{{ t.settings.showJudgmentText }}</span>
           <input v-model="settings.showJudgmentText" type="checkbox" />
           <span class="toggle__track" aria-hidden="true" />
         </label>
       </section>
 
       <section class="group">
-        <h3>声音</h3>
+        <h3>{{ t.settings.sectionAudio }}</h3>
         <label class="field">
           <span class="field__label">
-            <span>音乐音量</span>
+            <span>{{ t.settings.musicVolume }}</span>
             <b class="badge">{{ Math.round(settings.musicVolume * 100) }}%</b>
           </span>
           <input v-model.number="settings.musicVolume" type="range" min="0" max="1" step="0.01" />
@@ -74,14 +76,14 @@ function reset() {
 
         <label class="field">
           <span class="field__label">
-            <span>打击音量</span>
+            <span>{{ t.settings.sfxVolume }}</span>
             <b class="badge">{{ Math.round(settings.sfxVolume * 100) }}%</b>
           </span>
           <input v-model.number="settings.sfxVolume" type="range" min="0" max="1" step="0.01" />
         </label>
 
         <label class="toggle">
-          <span>静音长按持续音</span>
+          <span>{{ t.settings.muteHoldBodySfx }}</span>
           <input v-model="settings.muteHoldBodySfx" type="checkbox" />
           <span class="toggle__track" aria-hidden="true" />
         </label>
@@ -94,7 +96,7 @@ function reset() {
           <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
           <path d="M3 3v5h5" />
         </svg>
-        <span>恢复默认设置</span>
+        <span>{{ t.settings.reset }}</span>
       </button>
     </footer>
   </aside>

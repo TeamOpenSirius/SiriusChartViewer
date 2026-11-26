@@ -2,6 +2,7 @@
 
 import { AudioTransport } from './audioTransport'
 import { GlRenderer } from './glRenderer'
+import { getMessages } from './i18n'
 import { SfxPlayer } from './sfx'
 import { createViewerModule, lastError, type ViewerModule } from './wasm'
 
@@ -47,7 +48,7 @@ function extensionOf(name: string) {
 export async function readSource(source: ChartSource, init?: RequestInit): Promise<Uint8Array> {
   if (typeof source === 'string') {
     const res = await fetch(source, { credentials: 'same-origin', ...init })
-    if (!res.ok) throw new Error(`下载失败 ${res.status}: ${source}`)
+    if (!res.ok) throw new Error(getMessages().errors.downloadFailed(res.status, source))
     return new Uint8Array(await res.arrayBuffer())
   }
   if (source instanceof Blob) return new Uint8Array(await source.arrayBuffer())
@@ -94,7 +95,7 @@ export class ChartViewer {
     this.module = m
     this.measure()
     if (!m._wv_init(this.fbWidth, this.fbHeight)) {
-      throw new Error(`预览初始化失败：${lastError(m)}`)
+      throw new Error(getMessages().errors.initFailed(lastError(m)))
     }
     this.renderer.syncTextures(m)
     this.raf = requestAnimationFrame(this.tick)
@@ -127,7 +128,7 @@ export class ChartViewer {
       m.FS.writeFile(configPath, input.musicConfig)
     }
     const ok = m.ccall('wv_load_chart', 'number', ['string', 'string'], [chartPath, configPath])
-    if (!ok) throw new Error(`谱面加载失败：${lastError(m)}`)
+    if (!ok) throw new Error(getMessages().errors.chartLoadFailed(lastError(m)))
     this.chartLoaded = true
 
     const info: ChartInfo = {
@@ -173,7 +174,7 @@ export class ChartViewer {
     const ptr = m._malloc(pixels.length)
     try {
       m.HEAPU8.set(pixels, ptr)
-      if (!m._wv_set_cover(ptr, w, h)) throw new Error('封面绘制失败')
+      if (!m._wv_set_cover(ptr, w, h)) throw new Error(getMessages().errors.coverRenderFailed)
     } finally {
       m._free(ptr)
     }

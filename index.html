@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -49,9 +49,16 @@
     <div id="app">
       <div class="boot-splash" role="status" aria-live="polite">
         <div class="boot-splash__ring"></div>
-        <div class="boot-splash__text">正在启动 Sirius Chart Viewer…</div>
+        <div id="boot-splash-text" class="boot-splash__text">Starting Sirius Chart Viewer…</div>
       </div>
     </div>
+    <script>
+      if (/^zh/i.test((navigator.languages && navigator.languages[0]) || navigator.language || '')) {
+        document.documentElement.lang = 'zh-CN'
+        var el = document.getElementById('boot-splash-text')
+        if (el) el.textContent = '正在启动 Sirius Chart Viewer…'
+      }
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

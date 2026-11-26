@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="https://teamopensirius.github.io/SiriusChartViewer/"><img src="https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E9%A2%84%E8%A7%88-GitHub%20Pages-5c6ef2?logo=githubpages&logoColor=white" alt="在线预览" /></a>
   <a href="https://github.com/TeamOpenSirius/SiriusChartViewer/actions/workflows/build.yml"><img src="https://github.com/TeamOpenSirius/SiriusChartViewer/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only" /></a>
   <img src="https://img.shields.io/badge/Vue-3.4%2B-42b883?logo=vuedotjs&logoColor=white" alt="Vue 3" />
@@ -24,6 +25,14 @@
 </p>
 
 ---
+
+## 在线预览
+
+无需安装任何客户端，直接在浏览器中体验 **Sirius Chart Viewer**：
+
+- **在线站点**：<https://teamopensirius.github.io/SiriusChartViewer/>
+- 打开页面后直接拖入本地 `.wdschart` / `.csv` / `.sus` 谱面（可同时拖入音乐、封面与 `music_config.csv`），或通过 URL 参数加载远端谱面。
+- 自动跟随系统语言（中文系统显示简体中文，其余系统默认英文），同时支持在顶栏一键切换中英文。
 
 ## 项目简介
 
