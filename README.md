@@ -16,365 +16,158 @@
 
 <p align="center">
   <a href="https://github.com/TeamOpenSirius/SiriusChartViewer/actions/workflows/build.yml"><img src="https://github.com/TeamOpenSirius/SiriusChartViewer/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
-  <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="GPL-3.0-only" />
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only" /></a>
   <img src="https://img.shields.io/badge/Vue-3.4%2B-42b883?logo=vuedotjs&logoColor=white" alt="Vue 3" />
   <img src="https://img.shields.io/badge/WebAssembly-Emscripten-654ff0?logo=webassembly&logoColor=white" alt="WebAssembly" />
-  <img src="https://img.shields.io/badge/renderer-WebGL2-990000" alt="WebGL2" />
+  <img src="https://img.shields.io/badge/Renderer-WebGL2-990000" alt="WebGL2" />
 </p>
 
 ---
 
 ## Overview
 
-**Sirius Chart Viewer** brings the chart preview experience of `wds-editor` to the browser.
+**Sirius Chart Viewer** brings the desktop chart preview experience of [`wds-editor`](https://github.com/TeamOpenSirius/wds-editor) directly to the browser.
 
-Instead of reimplementing the renderer in JavaScript, the project compiles the upstream C++ preview core to **WebAssembly** with Emscripten and reproduces its rendering pipeline on top of **WebGL2**. Playback timing and hit sound scheduling are handled through the **Web Audio API**, while the standalone UI and embeddable component are built with **Vue 3 + TypeScript**.
+Instead of reimplementing chart parsing and rendering in JavaScript, the project compiles the upstream C++ preview core to **WebAssembly** via Emscripten and drives rendering through **WebGL2**. Playback timing and hit-sound scheduling are powered by the **Web Audio API**, while the standalone web app and embeddable component are built with **Vue 3 + TypeScript**.
 
-The goal is to keep browser previews visually and behaviorally close to the desktop editor while remaining easy to deploy and embed into other web applications.
-
-> This project is a **viewer only**. It does not provide chart editing functionality.
+> This project is a **chart viewer only** and does not include chart editing features.
 
 ## Features
 
-- **Browser-native chart preview** with no desktop application required.
-- **Upstream preview-core reuse** from `wds-editor` through a Git submodule.
-- Supports **`.wdschart`**, official **`.csv`**, and **`.sus`** charts.
-- Optional music, jacket/cover image, and official `music_config.csv`.
-- Rendering behavior designed to match the desktop preview, including:
-  - stage and note rendering;
-  - split lines and effects;
-  - combo display;
-  - judgment text;
-  - hit-effect timing.
-- Web Audio based playback clock and scheduled hit sounds.
-- Playback rate control from **0.5× to 2×**.
-- Adjustable note speed, lane cover/start offset, note thickness, split-line opacity, music volume, and SFX volume.
-- Keyboard shortcuts, seeking, fullscreen support, and mobile-responsive controls.
-- Can be built as:
-  - a **standalone static web page**;
-  - an **embeddable Vue component/library**.
-- URL-based chart loading for integration with other services.
+- **Native-fidelity 3D preview** directly in the browser via `wds-editor` (Git submodule).
+- **Multiple chart formats**: `.wdschart` (including Refresh / SV geometry), official `.csv`, and `.sus`.
+- **Optional media inputs**: BGM audio, song jacket / cover art (rendered on the stage screens), and official `music_config.csv`.
+- **Accurate visual & audio playback**: stage, notes, split lines & effects, combo counter, optional judgment text, and scheduled hit SFX.
+- **Complete playback controls**: play/pause, scrubbing, `0.5×` – `2.0×` playback rate, fullscreen (with mobile landscape rotation where supported), and keyboard shortcuts.
+- **Customizable display & audio**: note speed, lane cover / start offset, note thickness, split-line effect opacity, judgment text toggle, music/SFX volume, and hold-body SFX mute.
+- **Staged resource loading**: blocks playback until engine, textures, SFX, chart, audio, and cover are ready, with progress feedback and retry on failure.
+- **Dual distribution**: deploy as a **standalone static web app** or embed as a **Vue 3 component** (`@team-opensirius/sirius-chart-viewer`).
 
 ## Supported Inputs
 
-| Input | Supported formats / behavior |
+| Input | Supported Formats / Behavior |
 | --- | --- |
-| Chart | `.wdschart`, official `.csv`, `.sus` |
-| Music | Browser-decodable audio such as OGG, MP3, WAV, M4A/AAC, FLAC, Opus, WebM |
-| Cover | PNG, JPEG, WebP, GIF, AVIF, BMP and other browser-decodable images |
-| Timing config | Official `music_config.csv`, using `DelaySeconds` |
+| **Chart** | `.wdschart`, official `.csv`, `.sus` |
+| **Music** *(optional)* | `.ogg`, `.mp3`, `.wav`, `.m4a`, `.aac`, `.flac`, `.opus`, `.webm` (omitting plays on a silent clock) |
+| **Cover** *(optional)* | `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.avif`, `.bmp` |
+| **Config** *(optional)* | `music_config.csv` (`DelaySeconds`) |
 
-Audio and image codec support ultimately depends on the browser.
+### URL Query Parameters (Standalone App)
 
-## Tech Stack
-
-| Layer | Technology |
-| --- | --- |
-| UI | Vue 3, TypeScript |
-| Web build | Vite |
-| Preview core | C++17 from `wds-editor` |
-| Native-to-web toolchain | Emscripten + CMake |
-| Rendering | WebGL2 |
-| Audio / timing | Web Audio API |
-| CI | GitHub Actions |
-
-## Quick Start
-
-### Requirements
-
-- **Node.js 20+**
-- **Emscripten / emsdk**
-- **CMake 3.20+**
-- **Ninja** is recommended
-
-Clone the repository **with submodules**:
-
-```bash
-git clone --recursive https://github.com/TeamOpenSirius/SiriusChartViewer.git
-cd SiriusChartViewer
-
-npm ci
-npm run dev
-```
-
-If the repository was cloned without submodules:
-
-```bash
-git submodule update --init --recursive
-```
-
-The development command performs three steps:
-
-1. synchronizes hit-sound assets from `wds-editor`;
-2. compiles the C++ preview core to WebAssembly;
-3. starts the Vite development server.
-
-### Emscripten discovery
-
-`scripts/build-wasm.mjs` searches for Emscripten in this order:
-
-1. the `EMSDK` environment variable;
-2. `emcc` available on `PATH`;
-3. `C:/SDK/emsc/emsdk` on Windows.
-
-To build a debug WASM version with verbose `WDS_LOG` output:
-
-```bash
-node scripts/build-wasm.mjs --debug
-```
-
-The debug build directory is `build/wasm-debug/`.
-
-## Available Scripts
-
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Sync assets, build WASM, then start Vite |
-| `npm run build` | Build the standalone site into `dist/` |
-| `npm run preview` | Preview the production Vite build |
-| `npm run typecheck` | Run Vue/TypeScript type checking |
-| `npm run sync:assets` | Copy runtime hit-sound assets from the submodule |
-| `npm run build:wasm` | Compile the native preview core into `public/wasm/` |
-| `npm run build:lib` | Build the embeddable library into `dist-lib/` |
-
-The standalone Vite build uses a relative base path, so `dist/` can be deployed under an arbitrary subdirectory.
-
-## Using the Standalone Viewer
-
-Open or drag files into the page. Multiple related files can be selected at once.
-
-Typical inputs are:
+You can pre-load remote resources via query string:
 
 ```text
-expert.csv
-song.mp3
-cover.jpg
-music_config.csv
+/?chart=<chart_url>&music=<audio_url>&config=<music_config_url>&cover=<image_url>&name=<filename>&t=<seconds>
 ```
 
-The page automatically separates chart, audio, cover, and timing configuration files.
+## Keyboard Shortcuts
 
-### Keyboard Shortcuts
-
-| Key | Action |
+| Shortcut | Action |
 | --- | --- |
-| `Space` | Play / pause |
+| `Space` | Play / Pause |
 | `←` / `→` | Seek backward / forward 5 seconds |
-| `Shift + ←` / `Shift + →` | Seek backward / forward 1 second |
-| `Home` | Return to chart start |
-| `F` | Toggle fullscreen |
-| Double-click stage | Toggle fullscreen |
+| `Shift` + `←` / `→` | Seek backward / forward 1 second |
+| `Home` | Jump to start |
+| `F` or double-click stage | Toggle fullscreen |
+| `Esc` | Close settings panel / About modal |
 
-On browsers without element fullscreen support, such as iOS Safari, the component falls back to filling the viewport.
+## Using as a Vue 3 Component
 
-### URL Parameters
-
-The standalone page can load remote resources directly:
-
-```text
-index.html?chart=<chart-url>&music=<music-url>&cover=<cover-url>&config=<music_config-url>&name=<display-name>&t=<start-seconds>
-```
-
-| Parameter | Meaning |
-| --- | --- |
-| `chart` | Chart URL |
-| `music` | Optional music URL |
-| `cover` | Optional jacket/cover URL |
-| `config` | Optional `music_config.csv` URL |
-| `name` | Optional chart file name / display name |
-| `t` | Optional initial playback position in seconds |
-
-Remote resources must permit browser access through **CORS**.
-
-## Embedding as a Vue Component
-
-Build the library:
+Install the package (requires `vue >= 3.4`):
 
 ```bash
-npm run build:lib
+npm install @team-opensirius/sirius-chart-viewer
 ```
 
-Output:
-
-```text
-dist-lib/
-├── sirius-chart-viewer.js
-├── sirius-chart-viewer.css
-├── types/
-└── assets/
-    ├── wasm/
-    │   ├── sirius-viewer.js
-    │   ├── sirius-viewer.wasm
-    │   └── sirius-viewer.data
-    └── effects/
-```
-
-Vue is treated as a peer dependency. The runtime `assets/` directory must be hosted by the integrating application.
-
-> The package is currently marked `private` in `package.json`; the documented workflow is to build `dist-lib/` from the repository rather than install it from npm.
-
-### Example
+Serve the package's `dist-lib/assets/` directory (containing `wasm/` and `effects/`) as static files and pass its URL to `asset-base`:
 
 ```vue
 <script setup lang="ts">
-import { SiriusChartViewer } from 'sirius-chart-viewer'
-import 'sirius-chart-viewer/style.css'
+import { SiriusChartViewer } from '@team-opensirius/sirius-chart-viewer'
+import '@team-opensirius/sirius-chart-viewer/style.css'
 </script>
 
 <template>
-  <div style="height: 480px">
+  <div style="width: 100%; height: 600px">
     <SiriusChartViewer
-      :chart="chartBlob"
-      chart-name="expert.csv"
-      :music="'/api/song/audio'"
-      :cover="'/api/song/cover'"
+      chart="/charts/demo.csv"
+      music="/charts/demo.ogg"
+      cover="/charts/jacket.png"
       asset-base="/sirius-chart-viewer/"
-      autoplay
-      @loaded="info => console.log(info)"
-      @error="console.error"
     />
   </div>
 </template>
 ```
 
-The component fills its parent container, so the parent should provide an explicit height.
-
 ### Component Props
 
-| Prop | Type / purpose |
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `chart` | `ChartSource \| null` | `null` | Chart file (`File`, `Blob`, `ArrayBuffer`, `ArrayBufferView`, or URL string) |
+| `chartName` | `string` | `''` | File name hint used to detect format when `chart` has no name |
+| `music` | `ChartSource \| null` | `null` | Optional BGM audio |
+| `musicConfig` | `ChartSource \| null` | `null` | Optional official `music_config.csv` |
+| `cover` | `ChartSource \| null` | `null` | Optional song jacket image |
+| `assetBase` | `string` | `'/sirius-chart-viewer/'` | Base URL containing `wasm/` and `effects/` |
+| `autoplay` | `boolean` | `false` | Auto-start playback once all resources are loaded |
+| `pending` | `boolean` | `false` | Set `true` while host is still fetching Blob/binary sources |
+| `fetchInit` | `RequestInit` | `undefined` | Custom `fetch()` options for URL sources |
+
+### Events & Exposed Methods
+
+- **Events**: `ready`, `loaded(info: ChartInfo)`, `error(message: string)`, `ended`
+- **Exposed (`ref`)**: `play()`, `pause()`, `toggle()`, `seek(seconds: number)`, `viewer`
+
+See [docs/loading.md](./docs/loading.md) for resource loading guarantees and host integration details.
+
+## Local Development & Building
+
+### Prerequisites
+
+- **Node.js** 22+
+- **Emscripten** (`emcc` / `emcmake` on `PATH`, or `EMSDK` set, or `/usr/lib/emscripten` on Linux)
+- **CMake** 3.20+ and **Ninja** (recommended)
+
+### Setup
+
+```bash
+git clone --recursive https://github.com/TeamOpenSirius/SiriusChartViewer.git
+cd SiriusChartViewer
+npm ci
+```
+
+If you already cloned without `--recursive`:
+
+```bash
+git submodule update --init --recursive
+```
+
+### Scripts
+
+| Command | Description |
 | --- | --- |
-| `chart` | `File`, `Blob`, `ArrayBuffer`, typed-array view, or URL string |
-| `chart-name` | File name used to detect `.wdschart`, `.csv`, or `.sus`; optional when the source already has a name |
-| `music` | Optional music source using the same source types |
-| `music-config` | Optional official `music_config.csv` |
-| `cover` | Optional jacket/cover image |
-| `asset-base` | Base URL containing `wasm/` and `effects/`; defaults to `/sirius-chart-viewer/` |
-| `autoplay` | Start playback after loading, subject to browser autoplay policy |
-| `fetch-init` | Optional `fetch()` options for URL sources, such as authentication headers |
-
-### Events
-
-| Event | Payload |
-| --- | --- |
-| `ready` | None — preview engine initialized |
-| `loaded` | `ChartInfo` containing note count and timing information |
-| `error` | Error message string |
-| `ended` | None — playback reached the end |
-
-### Exposed Methods
-
-Using a Vue template ref, the component exposes:
-
-```ts
-play()
-pause()
-toggle()
-seek(seconds)
-```
-
-It also exposes the underlying `ChartViewer` instance for advanced integrations.
-
-### Content Security Policy
-
-If the host page uses CSP, WebAssembly execution generally requires:
-
-```text
-script-src 'wasm-unsafe-eval'
-```
-
-Adjust the full policy according to the host application's own security requirements.
-
-## Architecture
-
-```mermaid
-flowchart LR
-    UI["Vue UI / SiriusChartViewer"] --> Viewer["ChartViewer glue"]
-    Audio["AudioTransport<br/>Web Audio clock"] --> Viewer
-    Viewer --> WASM["wds-editor C++ core<br/>WebAssembly"]
-    WASM --> Preview["PlaybackPreviewView"]
-    Preview --> Batch["DrawBatch / draw commands"]
-    Batch --> GL["GlRenderer<br/>WebGL2"]
-    WASM --> SFX["SFX command queue"]
-    SFX --> Player["SfxPlayer<br/>Web Audio scheduling"]
-```
-
-At runtime, the audible music clock drives the preview timeline. The WebAssembly side applies the chart timeline and produces rendering commands plus SFX events. JavaScript then renders those commands through WebGL2 and schedules hit sounds against the Web Audio clock.
-
-This split allows the project to reuse the mature upstream chart/preview logic without carrying the desktop editor's Vulkan, BASS, or UI dependencies into the browser.
+| `npm run dev` | Sync assets, build WASM core, and start Vite dev server |
+| `npm run build` | Build standalone static web app into `dist/` |
+| `npm run build:lib` | Build embeddable Vue library + types + runtime assets into `dist-lib/` |
+| `npm run build:wasm` | Compile native C++ preview core to WebAssembly (`public/wasm/`) |
+| `npm run typecheck` | Run `vue-tsc --noEmit` |
+| `npm test` | Run loading, audio transport, and WASM preview regression tests |
 
 ## Project Structure
 
-| Path | Purpose |
-| --- | --- |
-| `third_party/wds-editor/` | Upstream editor Git submodule; kept unmodified |
-| `native/CMakeLists.txt` | Builds selected upstream C++ sources with Emscripten |
-| `native/shim/` | Browser-side replacement headers for desktop-only dependencies |
-| `native/src/viewer.cpp` | Exposes the `wv_*` bridge API used by JavaScript |
-| `native/src/web_renderer.cpp` | Web implementation of the renderer command path |
-| `native/src/split_colors.cpp` | Split-line color logic adapted from upstream editor code |
-| `src/lib/viewer.ts` | High-level glue between WASM, WebGL2, and Web Audio |
-| `src/lib/glRenderer.ts` | WebGL2 rendering backend |
-| `src/lib/audioTransport.ts` | Playback clock and music transport |
-| `src/lib/sfx.ts` | Hit-sound scheduling |
-| `src/components/SiriusChartViewer.vue` | Embeddable player component |
-| `src/App.vue` | Standalone viewer application |
-| `scripts/` | WASM build, asset sync, and library packaging scripts |
-
-The skin PNG files from `wds-editor` are embedded into `sirius-viewer.data` during the Emscripten build. Hit-sound assets are copied separately into `public/effects/`.
-
-## Following Upstream `wds-editor`
-
-The project intentionally reuses upstream source files rather than maintaining a forked copy.
-
-To update the submodule:
-
-```bash
-git -C third_party/wds-editor pull origin main
-npm run build:wasm
+```text
+SiriusChartViewer/
+├── native/                 # C++ WebAssembly entrypoints and WebGL2/Web Audio shims
+├── third_party/wds-editor/ # Upstream wds-editor preview core (Git submodule)
+├── scripts/                # Asset sync, WASM build, and library packaging scripts
+├── src/
+│   ├── App.vue             # Standalone web application shell
+│   ├── components/         # SiriusChartViewer, SettingsPanel, AboutModal
+│   └── lib/                # WebGL2 renderer, WASM loader, Web Audio transport & SFX
+├── tests/                  # Automated tests (loading, transport, WASM preview)
+└── docs/                   # Design & integration notes
 ```
-
-If compilation breaks after an upstream update, the most likely cause is an API change around `PlaybackPreviewView` or another reused renderer interface. Update the compatibility code under `native/shim/` or the small web-specific bridge implementations as needed.
-
-## Browser Requirements
-
-A modern browser with the following features is required:
-
-- WebAssembly;
-- WebGL2;
-- Web Audio API;
-- ES modules.
-
-Recent Chromium, Firefox, and Safari releases are the intended targets. Actual audio codec support varies by browser and operating system.
-
-## Known Differences / Limitations
-
-- Hold-body SFX gating is updated per frame (roughly 16 ms) rather than reproducing the exact BASS hold-gate edge behavior from the desktop editor.
-- `.wdsproject` is not supported because it represents a multi-file project; load its chart and music files directly instead.
-- This project is a **previewer**, not an editor.
-- Hit SFX assets are OGG. Older Safari versions without Ogg Vorbis support will not play hit sounds, although music playback may still work with supported codecs.
-- Browser autoplay policies may block `autoplay` until the user interacts with the page.
-
-## CI
-
-GitHub Actions builds the project on pushes to `main`, version tags, and pull requests. The workflow builds both:
-
-- `dist/` — standalone site;
-- `dist-lib/` — embeddable component package.
-
-Both directories are uploaded as workflow artifacts.
-
-## Contributing
-
-Issues and pull requests are welcome.
-
-For changes touching the preview core integration, prefer keeping `third_party/wds-editor` unmodified and implementing browser-specific compatibility in `native/shim/` or `native/src/`. This keeps upstream updates easier to track.
 
 ## License
 
-The source code in this repository is licensed under **GNU GPL v3 only (GPL-3.0-only)**. See [LICENSE](./LICENSE).
-
-`wds-editor` is included as a Git submodule and is governed by its own repository and licensing terms.
-
-## Disclaimer
-
-This is an unofficial community project. *World Dai Star* and related names, game content, artwork, audio, and other assets belong to their respective rights holders. This project is not affiliated with or endorsed by the official game operators or publishers.
+This project is licensed under the **GNU General Public License v3.0 (`GPL-3.0-only`)**. See [LICENSE](./LICENSE) for full terms.
