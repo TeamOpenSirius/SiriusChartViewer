@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // Standalone page: drop files (or pass ?chart=&music=&config= URLs) into the embeddable player.
 import { onMounted, ref, shallowRef } from 'vue'
+import AboutModal from './components/AboutModal.vue'
 import SiriusChartViewer from './components/SiriusChartViewer.vue'
+import { PROJECT_INFO } from './lib/projectInfo'
 import type { ChartSource } from './lib/viewer'
 
 const AUDIO_EXT = /\.(ogg|mp3|wav|m4a|aac|flac|opus|webm)$/i
@@ -17,7 +19,9 @@ const configName = ref('')
 const cover = shallowRef<ChartSource | null>(null)
 const coverName = ref('')
 const dragging = ref(false)
+const showAbout = ref(false)
 const player = ref<InstanceType<typeof SiriusChartViewer>>()
+const fileInput = ref<HTMLInputElement>()
 
 function loadFiles(files: File[]) {
   const audio = files.find((f) => AUDIO_EXT.test(f.name))
@@ -40,6 +44,23 @@ function loadFiles(files: File[]) {
     chart.value = chartFile
     chartName.value = chartFile.name
   }
+}
+
+function clearSource(kind: 'music' | 'config' | 'cover') {
+  if (kind === 'music') {
+    music.value = null
+    musicName.value = ''
+  } else if (kind === 'config') {
+    musicConfig.value = null
+    configName.value = ''
+  } else {
+    cover.value = null
+    coverName.value = ''
+  }
+}
+
+function openPicker() {
+  fileInput.value?.click()
 }
 
 function onPick(e: Event) {
@@ -101,17 +122,45 @@ function onLoaded() {
   >
     <header class="topbar">
       <div class="brand">
-        <img src="/logo.png" alt="" />
-        <span>Sirius Chart Viewer</span>
+        <img src="/logo.png" alt="Sirius Chart Viewer" />
+        <div class="brand__text">
+          <span class="brand__name">{{ PROJECT_INFO.name }}</span>
+          <span class="brand__ver">v{{ PROJECT_INFO.version }}</span>
+        </div>
       </div>
+
       <div class="files">
-        <span v-if="chartName" class="chip" :title="chartName">谱面 · {{ chartName }}</span>
-        <span v-if="musicName" class="chip" :title="musicName">音乐 · {{ musicName }}</span>
-        <span v-if="configName" class="chip" :title="configName">配置 · {{ configName }}</span>
-        <span v-if="coverName" class="chip" :title="coverName">封面 · {{ coverName }}</span>
+        <div class="chips">
+          <span v-if="chartName" class="chip chip--chart" :title="chartName">
+            <span class="chip__dot" />
+            <span class="chip__text">谱面 · {{ chartName }}</span>
+          </span>
+          <span v-if="musicName" class="chip chip--music" :title="musicName">
+            <span class="chip__dot" />
+            <span class="chip__text">音乐 · {{ musicName }}</span>
+            <button class="chip__clear" type="button" title="移除音乐" aria-label="移除音乐" @click="clearSource('music')">×</button>
+          </span>
+          <span v-if="configName" class="chip chip--config" :title="configName">
+            <span class="chip__dot" />
+            <span class="chip__text">配置 · {{ configName }}</span>
+            <button class="chip__clear" type="button" title="移除配置" aria-label="移除配置" @click="clearSource('config')">×</button>
+          </span>
+          <span v-if="coverName" class="chip chip--cover" :title="coverName">
+            <span class="chip__dot" />
+            <span class="chip__text">封面 · {{ coverName }}</span>
+            <button class="chip__clear" type="button" title="移除封面" aria-label="移除封面" @click="clearSource('cover')">×</button>
+          </span>
+        </div>
+
         <label class="btn primary">
-          打开文件
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          <span>打开文件</span>
           <input
+            ref="fileInput"
             type="file"
             multiple
             hidden
@@ -119,6 +168,15 @@ function onLoaded() {
             @change="onPick"
           />
         </label>
+
+        <button class="btn icon-label" type="button" title="关于项目" aria-label="关于项目" @click="showAbout = true">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <span class="btn__label">关于</span>
+        </button>
       </div>
     </header>
 
@@ -134,17 +192,46 @@ function onLoaded() {
         @loaded="onLoaded"
       >
         <template #empty>
-          <div class="hint">
-            <p class="big">把谱面拖到这里</p>
-            <p>
-              支持 <code>.wdschart</code> / 官方 <code>.csv</code> / <code>.sus</code>，可同时拖入音乐、封面图和
+          <div class="empty-card" role="button" tabindex="0" @click="openPicker" @keydown.enter.prevent="openPicker" @keydown.space.prevent="openPicker">
+            <div class="empty-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <path d="M12 18v-6" />
+                <path d="m9 15 3-3 3 3" />
+              </svg>
+            </div>
+            <p class="empty-card__title">拖入谱面文件，或点击此处选择</p>
+            <p class="empty-card__desc">支持同时选择或拖入谱面、音频、封面图与时间配置文件</p>
+            <div class="empty-card__formats">
+              <code>.wdschart</code>
+              <code>.csv</code>
+              <code>.sus</code>
+              <code>audio/*</code>
+              <code>cover</code>
               <code>music_config.csv</code>
-            </p>
+            </div>
           </div>
         </template>
       </SiriusChartViewer>
-      <div v-if="dragging" class="drop">松开以加载</div>
+
+      <Transition name="app-fade">
+        <div v-if="dragging" class="drop">
+          <div class="drop__box">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>松开鼠标以加载文件</span>
+          </div>
+        </div>
+      </Transition>
     </main>
+
+    <Transition name="app-fade">
+      <AboutModal v-if="showAbout" @close="showAbout = false" />
+    </Transition>
   </div>
 </template>
 
@@ -153,27 +240,46 @@ function onLoaded() {
   height: 100%;
   display: flex;
   flex-direction: column;
+  background: var(--bg);
 }
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 14px;
+  padding: 9px 16px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  z-index: 10;
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 600;
   white-space: nowrap;
 }
 .brand img {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.brand__text {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+.brand__name {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+.brand__ver {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .files {
   display: flex;
@@ -181,60 +287,206 @@ function onLoaded() {
   gap: 8px;
   min-width: 0;
 }
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
 .chip {
-  max-width: 220px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 210px;
+  font-size: 12px;
+  color: #cfd4e8;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.chip__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.chip--music .chip__dot {
+  background: #53d6a2;
+}
+.chip--config .chip__dot {
+  background: #f0b85c;
+}
+.chip--cover .chip__dot {
+  background: #e07cff;
+}
+.chip__text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+}
+.chip__clear {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
   color: var(--muted);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 3px 10px;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.chip__clear:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
 }
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 12px;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
+  color: var(--text);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, filter 0.15s ease;
+}
+.btn:hover {
+  border-color: var(--border-strong);
+  background: #23273d;
+}
+.btn:active {
+  transform: scale(0.98);
 }
 .btn.primary {
-  background: var(--accent-2);
-  border-color: var(--accent-2);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(92, 110, 242, 0.32);
+}
+.btn.primary:hover {
+  filter: brightness(1.08);
 }
 .body {
   position: relative;
   flex: 1;
   min-height: 0;
 }
-.hint .big {
-  font-size: 22px;
-  color: var(--text);
-  margin: 0 0 8px;
+.empty-card {
+  width: min(440px, 92%);
+  padding: 32px 28px;
+  border-radius: 20px;
+  background: rgba(18, 21, 35, 0.72);
+  border: 1px dashed rgba(124, 140, 255, 0.35);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.38);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
-code {
-  background: var(--panel-2);
-  padding: 1px 5px;
-  border-radius: 4px;
+.empty-card:hover {
+  border-color: rgba(124, 140, 255, 0.7);
+  background: rgba(24, 28, 48, 0.82);
+  transform: translateY(-2px);
 }
-.drop {
-  position: absolute;
-  inset: 0;
+.empty-card__icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(124, 140, 255, 0.18);
-  border: 2px dashed var(--accent);
-  font-size: 20px;
-  pointer-events: none;
+  background: rgba(124, 140, 255, 0.14);
+  border: 1px solid rgba(124, 140, 255, 0.28);
+  color: #a6b2ff;
+  margin-bottom: 4px;
 }
-@media (max-width: 640px) {
-  .brand span,
-  .chip {
+.empty-card__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+.empty-card__desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.empty-card__formats {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+code {
+  font-size: 11.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #c2caf6;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.drop {
+  position: absolute;
+  inset: 10px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14, 17, 32, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 2px dashed var(--accent);
+  pointer-events: none;
+  z-index: 20;
+}
+.drop__box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #dce1ff;
+  font-size: 18px;
+  font-weight: 600;
+}
+.app-fade-enter-active,
+.app-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+.app-fade-enter-from,
+.app-fade-leave-to {
+  opacity: 0;
+}
+@media (max-width: 720px) {
+  .chips {
     display: none;
+  }
+}
+@media (max-width: 520px) {
+  .brand__ver,
+  .btn__label {
+    display: none;
+  }
+  .topbar {
+    padding: 8px 12px;
   }
 }
 </style>

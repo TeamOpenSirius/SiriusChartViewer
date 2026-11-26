@@ -3,6 +3,10 @@
   "version": "0.2.0",
   "description": "Web 3D chart previewer for World Dai Star, built on the wds-editor preview core (WebAssembly + WebGL2).",
   "license": "GPL-3.0-only",
+  "homepage": "https://github.com/TeamOpenSirius/SiriusChartViewer#readme",
+  "bugs": {
+    "url": "https://github.com/TeamOpenSirius/SiriusChartViewer/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/TeamOpenSirius/SiriusChartViewer.git"

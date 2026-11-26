@@ -51,10 +51,13 @@ const settings = useSettings()
 
 const engineReady = ref(false)
 const loading = ref(true)
+const loadStage = ref('正在初始化预览引擎与音效…')
+const loadProgress = ref<number | null>(null)
 const error = ref('')
 const chartInfo = ref<ChartInfo>()
 const showSettings = ref(false)
 const fakeFullscreen = ref(false)
+const nativeFullscreen = ref(false)
 
 const time = ref(0)
 const duration = ref(0)
@@ -66,6 +69,26 @@ let disposed = false
 
 const hasChart = computed(() => !!chartInfo.value)
 const canPlay = computed(() => engineReady.value && hasChart.value && !loading.value && !props.pending && !error.value && !disposed)
+const isFullscreen = computed(() => nativeFullscreen.value || fakeFullscreen.value)
+const seekMax = computed(() => Math.max(duration.value, startTime.value + 0.01))
+const seekPercent = computed(() => {
+  const span = seekMax.value - startTime.value
+  if (span <= 0) return 0
+  return Math.min(100, Math.max(0, ((time.value - startTime.value) / span) * 100))
+})
+
+const loadingMessage = computed(() => {
+  if (!engineReady.value) return '正在初始化预览引擎与音效…'
+  if (props.pending) return '正在等待谱面与媒体资源…'
+  return loadStage.value
+})
+
+const loadingSubtext = computed(() => {
+  if (!engineReady.value) return '首次加载需下载 WebAssembly 核心与打击音效'
+  if (props.pending) return '等待外部数据源就绪'
+  if (loadProgress.value !== null) return `${Math.round(loadProgress.value)}%`
+  return '请稍候'
+})
 
 function formatTime(sec: number) {
   const sign = sec < 0 ? '-' : ''
@@ -101,6 +124,15 @@ function fail(e: unknown) {
   emit('error', error.value)
 }
 
+function describeTargets() {
+  const parts: string[] = []
+  if (props.chart) parts.push('谱面')
+  if (props.music) parts.push('音乐')
+  if (props.cover) parts.push('封面')
+  if (props.musicConfig) parts.push('配置')
+  return parts.length ? parts.join('、') : '资源'
+}
+
 // Every generation is a complete source set. A slow retired load can never
 // unlock playback or publish a loaded event for a newer selection.
 let generation = 0
@@ -113,6 +145,8 @@ function reload() {
   viewer.value?.transport.pause()
   playing.value = false
   loading.value = true
+  loadProgress.value = null
+  loadStage.value = `正在读取${describeTargets()}…`
   error.value = ''
   if (!viewer.value || running || props.pending || disposed) return
   void runReload()
@@ -127,11 +161,20 @@ async function runReload() {
       const controller = new AbortController()
       request = controller
       const current = () => !disposed && version === generation && !props.pending
-      const init = { ...props.fetchInit, signal: props.fetchInit?.signal
-        ? AbortSignal.any([controller.signal, props.fetchInit.signal]) : controller.signal }
+      const init = {
+        ...props.fetchInit,
+        signal: props.fetchInit?.signal
+          ? AbortSignal.any([controller.signal, props.fetchInit.signal])
+          : controller.signal,
+      }
       const chartSource = props.chart
       const name = props.chartName || sourceName(chartSource) || 'chart.csv'
+      const hasAnySource = !!(chartSource || props.musicConfig || props.music || props.cover)
       try {
+        if (hasAnySource) {
+          loadStage.value = `正在读取${describeTargets()}…`
+          loadProgress.value = 15
+        }
         const [data, config, audio, jacket] = await Promise.all([
           chartSource ? readSource(chartSource, init) : null,
           props.musicConfig ? readSource(props.musicConfig, init) : undefined,
@@ -139,16 +182,33 @@ async function runReload() {
           props.cover ? readSource(props.cover, init) : null,
         ])
         if (!current()) continue
-        await v.loadMusic(audio)
+
+        if (audio || jacket) {
+          loadStage.value = audio && jacket
+            ? '正在解码音频并处理封面…'
+            : audio
+              ? '正在解码音频…'
+              : '正在处理封面图像…'
+          loadProgress.value = 55
+        }
+        await Promise.all([v.loadMusic(audio), v.setCover(jacket)])
         if (!current()) continue
-        await v.setCover(jacket)
-        if (!current()) continue
+
+        if (data) {
+          loadStage.value = '正在解析谱面数据…'
+          loadProgress.value = 88
+        }
         chartInfo.value = data ? v.loadChart({ name, data, musicConfig: config }) : undefined
+        loadProgress.value = 100
         loading.value = false
         if (chartInfo.value) emit('loaded', chartInfo.value)
         if (current() && props.autoplay) await play()
       } catch (e) {
-        if (current()) { loading.value = false; fail(e) }
+        if (current()) {
+          loading.value = false
+          loadProgress.value = null
+          fail(e)
+        }
       }
       if (current()) break
     }
@@ -158,8 +218,11 @@ async function runReload() {
   }
 }
 
-watch(() => [props.chart, props.chartName, props.musicConfig, props.music, props.cover, props.pending, props.fetchInit],
-  reload, { flush: 'sync' })
+watch(
+  () => [props.chart, props.chartName, props.musicConfig, props.music, props.cover, props.pending, props.fetchInit],
+  reload,
+  { flush: 'sync' },
+)
 
 async function play() {
   const v = viewer.value
@@ -191,6 +254,10 @@ function onSeekInput(e: Event) {
 function onKey(e: KeyboardEvent) {
   const v = viewer.value
   if (!v) return
+  if (e.code === 'Escape' && showSettings.value) {
+    showSettings.value = false
+    return
+  }
   if (e.code === 'Space') {
     e.preventDefault()
     toggle()
@@ -205,6 +272,10 @@ function onKey(e: KeyboardEvent) {
   } else if (e.code === 'KeyF') {
     toggleFullscreen()
   }
+}
+
+function onFullscreenChange() {
+  nativeFullscreen.value = typeof document !== 'undefined' && !!document.fullscreenElement
 }
 
 function toggleFullscreen() {
@@ -231,6 +302,9 @@ function toggleFullscreen() {
 let instance: ChartViewer | null = null
 
 onMounted(async () => {
+  if (typeof document !== 'undefined') {
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+  }
   uiRaf = requestAnimationFrame(syncUi)
   try {
     const v = new ChartViewer(canvas.value!)
@@ -251,6 +325,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }
   disposed = true
   generation++
   request?.abort()
@@ -269,67 +346,142 @@ defineExpose({ play, pause, toggle, seek, viewer })
       <canvas ref="canvas" @click="toggle" @dblclick.stop="toggleFullscreen" />
 
       <div v-if="loading || pending" class="scv__overlay scv__overlay--dim" role="status" aria-live="polite">
-        <span class="scv__spinner" />
-        <span>{{ engineReady ? '正在加载谱面、音乐与画面资源…' : '正在加载预览引擎…' }}</span>
+        <div class="scv__loader-card">
+          <div class="scv__spinner-wrap" aria-hidden="true">
+            <span class="scv__spinner" />
+            <span class="scv__spinner scv__spinner--inner" />
+          </div>
+          <div class="scv__loader-copy">
+            <div class="scv__loader-title">{{ loadingMessage }}</div>
+            <div class="scv__loader-sub">{{ loadingSubtext }}</div>
+          </div>
+          <div class="scv__loader-bar" aria-hidden="true">
+            <div
+              class="scv__loader-fill"
+              :class="{ 'is-indeterminate': loadProgress === null || pending || !engineReady }"
+              :style="loadProgress !== null && !pending && engineReady ? { width: `${loadProgress}%` } : undefined"
+            />
+          </div>
+        </div>
       </div>
-      <div v-else-if="engineReady && !hasChart && !error" class="scv__overlay">
+
+      <div v-else-if="engineReady && !hasChart && !error" class="scv__overlay scv__overlay--empty">
         <slot name="empty">没有谱面</slot>
       </div>
+
       <button
         v-else-if="canPlay && !playing"
         class="scv__big-play"
+        type="button"
         aria-label="播放"
         @click="play"
       >
-        ▶
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true">
+          <path d="M8 5.5v13l11-6.5-11-6.5z" />
+        </svg>
       </button>
-      <div v-if="error" class="scv__error" role="alert">{{ error }} <button v-if="engineReady" type="button" @click="reload">重试加载</button></div>
+
+      <div v-if="error" class="scv__error" role="alert">
+        <svg class="scv__error-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v4m0 4h.01" stroke-linecap="round" />
+        </svg>
+        <span class="scv__error-text">{{ error }}</span>
+        <button v-if="engineReady" class="scv__retry" type="button" @click="reload">重试加载</button>
+      </div>
 
       <SettingsPanel v-if="showSettings" v-model="settings" class="scv__settings" @close="showSettings = false" />
     </section>
 
     <footer class="scv__controls">
-      <button class="scv__play" :disabled="!canPlay" :aria-label="playing ? '暂停' : '播放'" @click="toggle">
-        {{ playing ? '❚❚' : '▶' }}
+      <button class="scv__play" type="button" :disabled="!canPlay" :aria-label="playing ? '暂停' : '播放'" @click="toggle">
+        <svg v-if="playing" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+          <rect x="6" y="5" width="4" height="14" rx="1.2" />
+          <rect x="14" y="5" width="4" height="14" rx="1.2" />
+        </svg>
+        <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true" style="margin-left: 2px">
+          <path d="M7.5 5.5v13l11-6.5-11-6.5z" />
+        </svg>
       </button>
+
       <span class="scv__time">{{ formatTime(time) }}</span>
+
       <input
         class="scv__seek"
         type="range"
         aria-label="进度"
         :min="startTime"
-        :max="Math.max(duration, startTime + 0.01)"
+        :max="seekMax"
         step="0.01"
         :value="time"
         :disabled="!canPlay"
+        :style="{ '--seek-pct': `${seekPercent}%` }"
         @input="onSeekInput"
       />
+
       <span class="scv__time scv__time--total">{{ formatTime(duration) }}</span>
-      <span v-if="chartInfo" class="scv__meta">{{ combo }}/{{ chartInfo.noteCount }}</span>
+
+      <span v-if="chartInfo" class="scv__meta" title="当前 Combo / 总 Note 数">
+        <span class="scv__meta-val">{{ combo }}</span>
+        <span class="scv__meta-sep">/</span>
+        <span>{{ chartInfo.noteCount }}</span>
+      </span>
+
       <select v-model.number="settings.playbackRate" class="scv__rate" aria-label="播放速度">
         <option :value="0.5">0.5×</option>
         <option :value="0.75">0.75×</option>
-        <option :value="1">1×</option>
+        <option :value="1">1.0×</option>
         <option :value="1.25">1.25×</option>
         <option :value="1.5">1.5×</option>
-        <option :value="2">2×</option>
+        <option :value="2">2.0×</option>
       </select>
-      <button class="scv__btn" :class="{ 'is-active': showSettings }" aria-label="设置" @click="showSettings = !showSettings">⚙</button>
-      <button class="scv__btn" aria-label="全屏" @click="toggleFullscreen">⛶</button>
+
+      <button
+        class="scv__btn"
+        type="button"
+        :class="{ 'is-active': showSettings }"
+        aria-label="设置"
+        title="显示与声音设置"
+        @click="showSettings = !showSettings"
+      >
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+
+      <button
+        class="scv__btn"
+        type="button"
+        :class="{ 'is-active': isFullscreen }"
+        :aria-label="isFullscreen ? '退出全屏' : '全屏'"
+        :title="isFullscreen ? '退出全屏 (F)' : '全屏 (F)'"
+        @click="toggleFullscreen"
+      >
+        <svg v-if="isFullscreen" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+        </svg>
+        <svg v-else viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+        </svg>
+      </button>
     </footer>
   </div>
 </template>
 
 <style scoped>
 .scv {
-  --bg: #0b0c12;
-  --panel: #151722;
-  --panel-2: #1d2030;
-  --border: #2a2e42;
-  --text: #e6e8f2;
-  --muted: #8a8fa8;
+  --bg: #090a10;
+  --panel: #121420;
+  --panel-2: #1a1d2e;
+  --panel-glass: rgba(16, 18, 30, 0.86);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text: #eef0f8;
+  --muted: #8f95b2;
   --accent: #7c8cff;
-  --accent-2: #5b6cf0;
+  --accent-2: #5c6ef2;
+  --accent-glow: rgba(124, 140, 255, 0.32);
   --danger: #ff6b7a;
   container-type: inline-size;
   position: relative;
@@ -338,7 +490,7 @@ defineExpose({ play, pause, toggle, seek, viewer })
   width: 100%;
   height: 100%;
   min-height: 180px;
-  background: #000;
+  background: radial-gradient(circle at 50% 35%, rgba(124, 140, 255, 0.08), transparent 60%), #05060a;
   color: var(--text);
   font-family: system-ui, -apple-system, 'Segoe UI', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
   font-size: 14px;
@@ -390,120 +542,354 @@ defineExpose({ play, pause, toggle, seek, viewer })
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
   color: var(--muted);
   text-align: center;
-  padding: 16px;
+  padding: 20px;
   pointer-events: none;
 }
+.scv__overlay--empty {
+  pointer-events: auto;
+}
 .scv__overlay--dim {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(6, 7, 13, 0.68);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text);
+  z-index: 3;
+  animation: scv-fade-in 0.18s ease;
+}
+.scv__loader-card {
+  width: min(320px, 90%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 24px 20px;
+  border-radius: 16px;
+  background: rgba(18, 21, 35, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(124, 140, 255, 0.08) inset;
+}
+.scv__spinner-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
 }
 .scv__spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  position: absolute;
+  inset: 0;
+  border: 2.5px solid rgba(255, 255, 255, 0.1);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: scv-spin 0.8s linear infinite;
+  animation: scv-spin 0.85s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+}
+.scv__spinner--inner {
+  inset: 7px;
+  border-width: 2px;
+  border-top-color: transparent;
+  border-bottom-color: #a8b4ff;
+  animation-duration: 1.25s;
+  animation-direction: reverse;
 }
 @keyframes scv-spin {
   to {
     transform: rotate(360deg);
   }
 }
+.scv__loader-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.scv__loader-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.scv__loader-sub {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.scv__loader-bar {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.scv__loader-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-2), #9aa7ff);
+  transition: width 0.25s ease;
+}
+.scv__loader-fill.is-indeterminate {
+  width: 42%;
+  animation: scv-indeterminate 1.2s ease-in-out infinite;
+}
+@keyframes scv-indeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
 .scv__big-play {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 64px;
-  height: 64px;
+  width: 68px;
+  height: 68px;
   transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
-  border: none;
-  background: rgba(91, 108, 240, 0.85);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
-  font-size: 24px;
-  padding-left: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(135deg, rgba(124, 140, 255, 0.92), rgba(92, 110, 242, 0.92));
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55), 0 0 28px var(--accent-glow);
+  color: #fff;
+  padding-left: 3px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+.scv__big-play:hover {
+  transform: translate(-50%, -50%) scale(1.07);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6), 0 0 36px rgba(124, 140, 255, 0.5);
+  filter: brightness(1.06);
+}
+.scv__big-play:active {
+  transform: translate(-50%, -50%) scale(0.98);
 }
 .scv__error {
   position: absolute;
   left: 50%;
-  bottom: 12px;
+  bottom: 16px;
   transform: translateX(-50%);
-  max-width: 90%;
-  background: #3a1820;
-  border: 1px solid var(--danger);
-  color: #ffd6db;
-  padding: 8px 14px;
-  border-radius: 8px;
-  cursor: pointer;
+  max-width: min(560px, 92%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(52, 18, 28, 0.94);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 107, 122, 0.55);
+  color: #ffdce1;
+  padding: 10px 14px;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  z-index: 4;
+}
+.scv__error-icon {
+  flex: none;
+  color: var(--danger);
+}
+.scv__error-text {
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.scv__retry {
+  flex: none;
+  margin-left: 4px;
+  background: rgba(255, 107, 122, 0.18);
+  border: 1px solid rgba(255, 107, 122, 0.45);
+  color: #fff;
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+.scv__retry:hover {
+  background: rgba(255, 107, 122, 0.32);
 }
 .scv__settings {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(300px, 100%);
-  z-index: 2;
+  width: min(312px, 100%);
+  z-index: 5;
+  animation: scv-slide-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .scv__controls {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  padding: 9px 14px;
+  padding-bottom: max(9px, env(safe-area-inset-bottom));
   background: var(--panel);
   border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.28);
 }
 .scv__play {
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
-  border: none;
-  background: var(--accent-2);
-  font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(92, 110, 242, 0.35);
+  transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+.scv__play:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: scale(1.04);
+}
+.scv__play:active:not(:disabled) {
+  transform: scale(0.96);
 }
 .scv__play:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: default;
-}
-.scv__time,
-.scv__meta {
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  white-space: nowrap;
+  box-shadow: none;
 }
 .scv__time {
-  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 46px;
   text-align: center;
 }
 .scv__seek {
+  --seek-pct: 0%;
   flex: 1;
   min-width: 60px;
-  accent-color: var(--accent);
+  height: 20px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.scv__seek:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.scv__seek::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--seek-pct),
+    rgba(255, 255, 255, 0.14) var(--seek-pct),
+    rgba(255, 255, 255, 0.14) 100%
+  );
+}
+.scv__seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.scv__seek:hover:not(:disabled)::-webkit-slider-thumb {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 4px rgba(124, 140, 255, 0.25);
+}
+.scv__seek::-moz-range-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+.scv__seek::-moz-range-progress {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.scv__seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+.scv__meta {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+.scv__meta-val {
+  color: var(--text);
+  font-weight: 600;
+}
+.scv__meta-sep {
+  margin: 0 2px;
+  opacity: 0.5;
 }
 .scv__rate {
+  height: 34px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 4px;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.scv__rate:hover {
+  border-color: var(--border-strong);
+  background: #21253a;
 }
 .scv__btn {
   flex: none;
   width: 34px;
   height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 16px;
-  line-height: 1;
+  border-radius: 8px;
+  color: var(--muted);
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.scv__btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: #21253a;
 }
 .scv__btn.is-active {
-  border-color: var(--accent);
+  border-color: rgba(124, 140, 255, 0.65);
+  background: rgba(124, 140, 255, 0.14);
   color: var(--accent);
+}
+@keyframes scv-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes scv-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 @container (max-width: 560px) {
   .scv__meta,
@@ -511,9 +897,9 @@ defineExpose({ play, pause, toggle, seek, viewer })
     display: none;
   }
   .scv__controls {
-    gap: 6px;
-    padding-left: 8px;
-    padding-right: 8px;
+    gap: 7px;
+    padding-left: 10px;
+    padding-right: 10px;
   }
 }
 @container (max-width: 380px) {

@@ -4,4 +4,5 @@ build/
 public/wasm/
 public/effects/
 *.log
+*.tgz
 dist-lib/

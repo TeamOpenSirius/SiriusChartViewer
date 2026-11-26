@@ -26,7 +26,7 @@ function findEmscriptenDir() {
   if (process.env.EMSDK) candidates.push(path.join(process.env.EMSDK, 'upstream', 'emscripten'))
   const onPath = which('emcc')
   if (onPath) candidates.push(path.dirname(onPath))
-  candidates.push('C:/SDK/emsc/emsdk/upstream/emscripten')
+  candidates.push('C:/SDK/emsc/emsdk/upstream/emscripten', '/usr/lib/emscripten')
   return candidates.find((dir) => fs.existsSync(path.join(dir, isWin ? 'emcmake.bat' : 'emcmake'))
     || fs.existsSync(path.join(dir, 'emcmake.exe'))) ?? null
 }

@@ -121,13 +121,33 @@ void VulkanRenderer::append_pass(const DrawBatch& src, WebBlend blend) {
     if (bucket.vertices.empty() || bucket.texture == kInvalidTextureId) {
       continue;
     }
+    WebBlend resolved = blend;
+    if (bucket.overlay_pipe == static_cast<uint8_t>(DrawOverlayPipe::Alpha)) {
+      resolved = WebBlend::Alpha;
+    } else if (bucket.overlay_pipe == static_cast<uint8_t>(DrawOverlayPipe::Additive) ||
+               bucket.overlay_pipe == static_cast<uint8_t>(DrawOverlayPipe::AdditiveClip01)) {
+      resolved = WebBlend::Additive;
+    }
     WebDrawCommand cmd;
-    cmd.blend = static_cast<uint32_t>(blend);
+    cmd.blend = static_cast<uint32_t>(resolved);
     cmd.texture = bucket.texture;
     cmd.first_vertex = static_cast<uint32_t>(vertices_.size());
-    cmd.vertex_count = static_cast<uint32_t>(bucket.vertices.size());
-    vertices_.insert(vertices_.end(), bucket.vertices.begin(), bucket.vertices.end());
-    commands_.push_back(cmd);
+    if (!bucket.indices.empty()) {
+      vertices_.reserve(vertices_.size() + bucket.indices.size());
+      const size_t vcount = bucket.vertices.size();
+      for (uint32_t idx : bucket.indices) {
+        if (idx < vcount) {
+          vertices_.push_back(bucket.vertices[idx]);
+        }
+      }
+      cmd.vertex_count = static_cast<uint32_t>(vertices_.size()) - cmd.first_vertex;
+    } else {
+      cmd.vertex_count = static_cast<uint32_t>(bucket.vertices.size());
+      vertices_.insert(vertices_.end(), bucket.vertices.begin(), bucket.vertices.end());
+    }
+    if (cmd.vertex_count > 0) {
+      commands_.push_back(cmd);
+    }
   }
 }
 
@@ -138,7 +158,6 @@ bool VulkanRenderer::draw_frame(const DrawBatch& batch, const ScreenBounds& scre
                                 const DrawBatch* mid_overlay, const DrawBatch* early_additive,
                                 const DrawBatch* scene_carve, const DrawBatch* playfield_hud,
                                 const DrawFrameExtras* extras, DrawFrameDump* dump) {
-  (void)extras;
   (void)dump;
   vertices_.clear();
   commands_.clear();
@@ -147,14 +166,33 @@ bool VulkanRenderer::draw_frame(const DrawBatch& batch, const ScreenBounds& scre
   clear_[2] = clear_b;
   ortho_rh(screen.l, screen.r, screen.b, screen.t, -1.0f, 1.0f, mvp_);
 
-  // Pass order mirrors VulkanRenderer::draw_frame:
-  // batch → mid_overlay → additive → post_overlay → post_overlay2.
+  auto append_extras = [&](const DrawBatch* const* list, size_t n, WebBlend blend) {
+    if (list == nullptr) {
+      return;
+    }
+    for (size_t i = 0; i < n; ++i) {
+      if (list[i] != nullptr) {
+        append_pass(*list[i], blend);
+      }
+    }
+  };
+
+  // Pass order mirrors VulkanRenderer::draw_frame.
   append_pass(batch, WebBlend::Alpha);
+  if (extras != nullptr) {
+    append_extras(extras->mid_prefix, extras->mid_prefix_n, WebBlend::Alpha);
+  }
   if (mid_overlay != nullptr) {
     append_pass(*mid_overlay, WebBlend::Alpha);
   }
   if (early_additive != nullptr) {
     append_pass(*early_additive, WebBlend::Additive);
+  }
+  if (extras != nullptr) {
+    append_extras(extras->early_extra, extras->early_extra_n, WebBlend::Additive);
+  }
+  if (extras != nullptr) {
+    append_extras(extras->carve_prefix, extras->carve_prefix_n, WebBlend::Additive);
   }
   if (scene_carve != nullptr) {
     append_pass(*scene_carve, WebBlend::Additive);

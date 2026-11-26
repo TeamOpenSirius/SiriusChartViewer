@@ -3,11 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090a10" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>Sirius Chart Viewer</title>
+    <style>
+      html,
+      body,
+      #app {
+        margin: 0;
+        height: 100%;
+        background: #090a10;
+        color: #eef0f8;
+        font-family: system-ui, -apple-system, 'Segoe UI', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+      }
+      .boot-splash {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: radial-gradient(circle at 50% 38%, rgba(124, 140, 255, 0.14), transparent 55%), #090a10;
+      }
+      .boot-splash__ring {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 2.5px solid rgba(255, 255, 255, 0.12);
+        border-top-color: #7c8cff;
+        animation: boot-spin 0.8s linear infinite;
+      }
+      .boot-splash__text {
+        font-size: 13px;
+        color: #8f95b2;
+        letter-spacing: 0.02em;
+      }
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="boot-splash" role="status" aria-live="polite">
+        <div class="boot-splash__ring"></div>
+        <div class="boot-splash__text">正在启动 Sirius Chart Viewer…</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
